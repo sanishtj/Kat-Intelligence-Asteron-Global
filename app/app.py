@@ -348,8 +348,8 @@ BRAND_CSS = """
   text-align: center;}
 .gk-card-title {font-size: 1.45rem; font-weight: 800;
   color: #263238; margin-top: 2px; text-align: center;}
-.gk-card-text {color: #455a64; max-width: 640px;
-  margin: 8px auto 0; text-align: center;}
+.gk-card p.gk-card-text {color: #455a64; max-width: 640px;
+  margin: 8px auto 0; text-align: center !important;}
 .gk-card-cta {margin-top: 16px; font-size: 1.05rem;
   font-weight: 700; color: #b87718; text-align: center;}
 .gk-tiles {display: flex; gap: 12px; justify-content: center;
@@ -364,6 +364,29 @@ BRAND_CSS = """
 .gk-bar > div {height: 100%; background: #d98e2b;
   animation: gkfill 15s linear forwards;}
 @keyframes gkfill {from {width: 0;} to {width: 100%;}}
+/* Stepper controls, deliberately prominent: big bold labels,
+   amber outlines, a warm fill on Previous and Next, and Play or
+   Pause as a filled primary button, so nobody misses them. */
+.st-key-built_prev button, .st-key-built_next button {
+  font-size: 1.05rem; font-weight: 700; color: #263238;
+  background: #fff3dd; border: 2px solid #d98e2b;
+  border-radius: 10px; padding: 0.55rem 0.5rem;}
+.st-key-built_prev button:hover, .st-key-built_next button:hover {
+  background: #ffe7bd; color: #263238; border-color: #b87718;}
+.st-key-built_pause button {font-size: 1.05rem; font-weight: 700;
+  border: 2px solid #b87718; border-radius: 10px;
+  padding: 0.55rem 0.5rem;}
+/* The step icons are real buttons wearing the circle look; the
+   state colours (done, current, to come) are emitted per run by
+   the stepper itself, because they follow the current step. */
+[class*="st-key-built_step_"] button {display: block;
+  margin: 0 auto; width: 52px; height: 52px; border-radius: 50%;
+  font-size: 24px; line-height: 1; padding: 0;
+  background: #eceff1; border: 2px solid #cfd8dc; color: #263238;}
+[class*="st-key-built_step_"] button:hover {
+  border-color: #d98e2b; color: #263238;}
+.gk-steplab {text-align: center; font-size: 0.8rem;
+  font-weight: 600; color: #78909c; margin-top: 4px;}
 </style>
 """
 
@@ -954,8 +977,6 @@ def _built_steps(stats: dict) -> list[dict]:
                  "them, and the policy opens on the exact page with "
                  "the passage highlighted. If nothing matches, the "
                  "answer honestly says so.",
-         "cta": "👆 Now see it happen live — open the 📝 Prompt tab "
-                "and run a message through the prompt yourself.",
          "tiles": [(f"{int(config.THRESHOLD_DEFAULT * 100)}%",
                     "minimum match to count"),
                    (str(config.MAX_K_DEFAULT), "passages at most"),
@@ -967,6 +988,13 @@ def _built_nav(target: int) -> None:
     st.session_state["built_step"] = target
     st.session_state["built_nav"] = True
     st.session_state["built_rag_held"] = False
+
+
+def _built_jump(target: int) -> None:
+    """An icon click: go straight to that step and pause the walk
+    there, so the reader is not carried away mid-read."""
+    _built_nav(target)
+    st.session_state["built_paused"] = True
 
 
 def _built_toggle_pause() -> None:
@@ -1001,14 +1029,36 @@ def built_stepper() -> None:
     idx = st.session_state["built_step"] % total
     step = steps[idx]
     paused = st.session_state.get("built_paused", False)
-    circles = []
-    for i, s in enumerate(steps):
-        cls = "done" if i < idx else "now" if i == idx else "todo"
-        circles.append(
-            f'<div class="gk-step {cls}"><div class="gk-ico">'
-            f'{s["icon"]}</div><div class="gk-lab">{s["label"]}'
-            "</div></div>")
-    st.markdown(f'<div class="gk-steps">{"".join(circles)}</div>',
+    # The seven icons are real buttons: one click jumps straight
+    # to that step and pauses the walk there, so a reader can sit
+    # on the step they care about. Their state colours (done in
+    # amber, the current one ringed, the rest grey) are emitted
+    # per run because they follow the current step.
+    state_css = []
+    for i in range(total):
+        if i < idx:
+            look = "background:#d98e2b;border-color:#d98e2b;"
+        elif i == idx:
+            look = ("background:#ffffff;border-color:#d98e2b;"
+                    "box-shadow:0 0 0 5px rgba(217,142,43,0.25);"
+                    "transform:scale(1.12);")
+        else:
+            look = "background:#eceff1;border-color:#cfd8dc;"
+        state_css.append(
+            f'[class*="st-key-built_step_{i}"] button {{{look}}}')
+    st.markdown(f"<style>{''.join(state_css)}</style>",
+                unsafe_allow_html=True)
+    icon_cols = st.columns(total)
+    for i, (col, s) in enumerate(zip(icon_cols, steps)):
+        with col:
+            st.button(s["icon"], key=f"built_step_{i}",
+                      on_click=_built_jump, args=(i,),
+                      help=f"Go to step {i + 1}: {s['label']}")
+            weight = "800" if i == idx else "600"
+            colour = "#263238" if i == idx else "#78909c"
+            st.markdown(
+                f'<div class="gk-steplab" style="font-weight:'
+                f'{weight}; color:{colour}">{s["label"]}</div>',
                 unsafe_allow_html=True)
     tiles = "".join(
         f'<div class="gk-tile"><div class="gk-num">{num}</div>'
@@ -1032,11 +1082,33 @@ def built_stepper() -> None:
         f'<p class="gk-card-text">{step["text"]}</p>'
         f'{cta}<div class="gk-tiles">{tiles}</div>{bar}</div>',
         unsafe_allow_html=True)
+    if idx == total - 1:
+        # On the RAG step there is no call-to-action text. Instead a
+        # large pointing hand bobs up and down directly underneath
+        # the Prompt tab itself, so the next move is obvious without
+        # a word of instruction. The rule lives only while this step
+        # is showing: the fragment re-renders without it afterwards.
+        st.markdown(
+            "<style>"
+            '[role="tablist"] {overflow: visible;}'
+            '[role="tablist"] button[data-testid="stTab"]'
+            ":nth-of-type(5) {position: relative;}"
+            '[role="tablist"] button[data-testid="stTab"]'
+            ':nth-of-type(5)::after {content: "👆"; '
+            "position: absolute; top: 100%; left: 50%; "
+            "font-size: 30px; line-height: 1; z-index: 50; "
+            "pointer-events: none; "
+            "animation: gkbob 0.9s ease-in-out infinite alternate;}"
+            "@keyframes gkbob {"
+            "from {transform: translate(-50%, 0);}"
+            "to {transform: translate(-50%, 7px);}}"
+            "</style>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     c1.button("← Previous", key="built_prev", width="stretch",
               on_click=_built_nav, args=((idx - 1) % total,))
     c2.button("▶ Play" if paused else "⏸ Pause", key="built_pause",
-              width="stretch", on_click=_built_toggle_pause)
+              width="stretch", type="primary",
+              on_click=_built_toggle_pause)
     c3.button("Next →", key="built_next", width="stretch",
               on_click=_built_nav, args=((idx + 1) % total,))
 
@@ -1046,7 +1118,8 @@ with tab_pipeline:
     st.write("The whole system, in seven steps, from the documents "
              "arriving to an answer opening the exact policy page. "
              "It plays on its own, one step every fifteen seconds, or "
-             "step through it yourself with the buttons.")
+             "step through it yourself with the buttons. Clicking any "
+             "step icon jumps straight to it and pauses the walk.")
     built_stepper()
     st.caption("In production this same design swaps the local "
                "ChromaDB folder for Azure AI Search; the chunks and "
