@@ -1239,12 +1239,15 @@ with tab_chat:
                 if asst_msg.get("tokens") is not None:
                     st.caption(chunks_line(len(_checked),
                                            len(_sources)))
-            # Per-answer route into the workbench: carry this
-            # exchange's question into Fine-tune, where its
-            # passages and chunks are already in view, instead
+            # Per-answer route into the workbench: the button
+            # runs this exchange's question fresh in Fine-tune,
+            # where its passages and chunks are in view, instead
             # of starting empty. The tab switch itself is the
             # one-shot click rendered at the top of this tab on
             # the next run (Streamlit has no switch-tab call).
+            # Sanish's decision (25 Nov 2026): the button keeps
+            # re-running, and the warning under it says plainly
+            # that a fresh run can use a different subset.
             if len(messages) >= 2:
                 if st.button("⚙️ See the passages in Fine-tune",
                              key=f"finetune_{view}"):
@@ -1252,6 +1255,10 @@ with tab_chat:
                     st.session_state.run_now = True
                     st.session_state.goto_finetune = True
                     st.rerun()
+                st.warning(
+                    "Each click runs the question again in "
+                    "Fine-tune. The returned chunks stay the same, "
+                    "but the chunks the answer uses may vary.")
 
 # ---------------------------------------------------------------- policies
 with tab_policies:
