@@ -255,7 +255,7 @@ BRAND_CSS = """
    itself renders near-white on white. Trim the gap so the brand
    sits near the top, and make the collapse control properly
    visible (never hidden: it must stay usable). */
-[data-testid="stSidebarUserContent"] {padding-top: 1rem;}
+[data-testid="stSidebarUserContent"] {padding-top: 0.25rem;}
 [data-testid="stSidebarCollapseButton"] {opacity: 1; color: #263238;
   background: rgba(38, 50, 56, 0.06); border-radius: 6px;}
 [data-testid="stSidebarCollapsedControl"] {opacity: 1; color: #263238;
@@ -280,6 +280,33 @@ BRAND_CSS = """
 @keyframes gkspin {to {transform: rotate(360deg);}}
 .gk-loader-text {margin-top: 10px; color: #546e7a; font-size: 0.92rem;}
 .gk-footer {text-align: center; color: #78909c; font-size: 0.82rem;}
+/* Top spacing: Streamlit reserves a tall band at the top of the
+   main area and above the sidebar header. Pull the content up so
+   both brands sit near the top where they belong. */
+[data-testid="stMainBlockContainer"] {padding-top: 1.6rem;}
+[data-testid="stAppViewBlockContainer"] {padding-top: 1.6rem;}
+[data-testid="stSidebarHeader"] {padding-top: 0.4rem;
+  padding-bottom: 0;}
+/* Tabs that read as tabs: larger labels, boxed tops, and the
+   selected tab white with the brand amber line under it. */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {gap: 6px;}
+[data-testid="stTabs"] [data-baseweb="tab"] {font-size: 1.05rem;
+  font-weight: 600; color: #546e7a; padding: 10px 18px;
+  background: rgba(38, 50, 56, 0.05);
+  border: 1px solid rgba(38, 50, 56, 0.16); border-bottom: none;
+  border-radius: 10px 10px 0 0;}
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]
+  {background: #ffffff; color: #263238;}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"]
+  {background-color: #d98e2b; height: 3px;}
+/* The chat box is the centrepiece of the Chat tab: a framed,
+   tinted panel with a large input, not a bare text box. */
+[data-testid="stForm"] {border: 2px solid #d98e2b;
+  border-radius: 14px; background: #fffaf1;
+  padding: 14px 16px 6px;
+  box-shadow: 0 2px 12px rgba(38, 50, 56, 0.10);}
+[data-testid="stForm"] [data-testid="stTextInput"] input
+  {font-size: 1.1rem; padding: 0.65rem 0.8rem;}
 </style>
 """
 
@@ -465,6 +492,32 @@ def stream_explanation(client, complaint: str, used: list[dict]):
     return st.write_stream(_pieces()), usage
 
 
+@st.dialog("The policy page, with the passage highlighted",
+           width="large")
+def _page_dialog(hit: dict, rendered: dict):
+    st.markdown(f"**{hit['title']}** · {hit['section']} · "
+                f"page {hit['page_start']}")
+    st.image(rendered["png"])
+    note = (f"Page {rendered['page']} of {rendered['pages_total']} "
+            f"in {hit['title']}")
+    note += (" — passage highlighted." if rendered["highlighted"]
+             else " — the passage could not be highlighted "
+                  "automatically; the page is shown as-is.")
+    st.caption(note)
+    if st.button("Close"):
+        st.rerun()
+
+
+@st.dialog("Policy preview", width="large")
+def _policy_dialog(entry: dict, pdf_bytes: bytes):
+    st.markdown(f"**{entry['title']}**")
+    # Built-in Streamlit PDF viewer: read and page through the
+    # document right here in the pop-up, no download.
+    st.pdf(pdf_bytes)
+    if st.button("Close"):
+        st.rerun()
+
+
 def show_matches(used: list[dict], key_prefix: str = ""):
     for i, hit in enumerate(used, start=1):
         pct = round(hit["similarity"] * 100, 1)
@@ -476,20 +529,12 @@ def show_matches(used: list[dict], key_prefix: str = ""):
         preview_key = f"{key_prefix}{hit['chunk_id']}"
         if st.button(f"Preview page {hit['page_start']} with the passage "
                      f"highlighted", key=f"preview_{preview_key}"):
-            slot = st.empty()
-            show_loader(slot, "Opening the policy at the exact page…")
-            st.session_state.previews[preview_key] = \
-                highlight.render_for_hit(hit)
-            slot.empty()
-        if preview_key in st.session_state.previews:
-            rendered = st.session_state.previews[preview_key]
-            st.image(rendered["png"])
-            note = (f"Page {rendered['page']} of "
-                    f"{rendered['pages_total']} in {hit['title']}")
-            note += (" — passage highlighted." if rendered["highlighted"]
-                     else " — the passage could not be highlighted "
-                          "automatically; the page is shown as-is.")
-            st.caption(note)
+            rendered = st.session_state.previews.get(preview_key)
+            if rendered is None:
+                with st.spinner("Opening the policy at the exact page…"):
+                    rendered = highlight.render_for_hit(hit)
+                st.session_state.previews[preview_key] = rendered
+            _page_dialog(hit, rendered)
         st.divider()
 
 
@@ -595,139 +640,160 @@ with tab_home:
 
 # ---------------------------------------------------------------- chat
 with tab_chat:
-    with st.expander("What is this? About Kat Intelligence",
-                     expanded=False):
-        st.markdown("### What is this?")
-        st.write(
-            "Every company has policies: a code of conduct, rules on gifts, "
-            "harassment, expenses, data and more. The problem is finding the "
-            "right one at the moment it matters. When an employee reports a "
-            "concern, the person handling the case usually has to search "
-            "shared drives and old emails to find which policy applies.\n\n"
-            "Kat Intelligence removes that search. The company's own policy "
-            "documents are read in advance and kept ready. The moment a "
-            "concern is reported, it finds the passages that apply, explains "
-            "them in plain words, and opens each document on the exact page.")
-        st.markdown("### Why companies use it")
-        benefit_cols = st.columns(3)
-        with benefit_cols[0]:
+    chat_col, rail_col = st.columns([3, 1])
+    with rail_col:
+        with st.expander("What is this? About Kat Intelligence",
+                         expanded=False):
+            st.markdown("### What is this?")
+            st.write(
+                "Every company has policies: a code of conduct, rules "
+                "on gifts, harassment, expenses, data and more. The "
+                "problem is finding the right one at the moment it "
+                "matters. When an employee reports a concern, the "
+                "person handling the case usually has to search shared "
+                "drives and old emails to find which policy applies."
+                "\n\n"
+                "Kat Intelligence removes that search. The company's "
+                "own policy documents are read in advance and kept "
+                "ready. The moment a concern is reported, it finds the "
+                "passages that apply, explains them in plain words, "
+                "and opens each document on the exact page.")
+            st.markdown("### Why companies use it")
             with st.container(border=True):
                 st.markdown("**The right policy, in seconds**")
                 st.write("The matching policies arrive with the case. "
-                         "Nobody digs through folders, and a new investigator "
-                         "is as well briefed as a senior one.")
-        with benefit_cols[1]:
+                         "Nobody digs through folders, and a new "
+                         "investigator is as well briefed as a senior "
+                         "one.")
             with st.container(border=True):
                 st.markdown("**The exact page, highlighted**")
-                st.write("Every match opens the real document on the page "
-                         "that matters, with the passage highlighted, so "
-                         "anyone can check it with one click.")
-        with benefit_cols[2]:
+                st.write("Every match opens the real document on the "
+                         "page that matters, with the passage "
+                         "highlighted, so anyone can check it with one "
+                         "click.")
             with st.container(border=True):
                 st.markdown("**Honest when nothing matches**")
                 st.write("If no policy covers the concern, it says so "
-                         "instead of guessing. People make the decisions; "
-                         "Kat Intelligence brings the right pages.")
-        st.markdown("### Where it helps")
-        use_cols = st.columns(4)
-        use_cases = [
-            ("Speak-up reports",
-             "A whistleblowing report arrives, and the policies that govern "
-             "it are attached to the case from the start."),
-            ("Harassment inquiries",
-             "The inquiry committee sees the exact clauses, timelines and "
-             "steps the policy promises."),
-            ("Compliance checks",
-             "Gifts, conflicts of interest and expense claims checked "
-             "against the written rule, not memory."),
-            ("Employee questions",
-             "\u201cCan I accept this?\u201d answered from the policy "
-             "itself, with the page to prove it."),
-        ]
-        for col, (title, body) in zip(use_cols, use_cases):
-            with col:
+                         "instead of guessing. People make the "
+                         "decisions; Kat Intelligence brings the right "
+                         "pages.")
+            st.markdown("### Where it helps")
+            use_cases = [
+                ("Speak-up reports",
+                 "A whistleblowing report arrives, and the policies "
+                 "that govern it are attached to the case from the "
+                 "start."),
+                ("Harassment inquiries",
+                 "The inquiry committee sees the exact clauses, "
+                 "timelines and steps the policy promises."),
+                ("Compliance checks",
+                 "Gifts, conflicts of interest and expense claims "
+                 "checked against the written rule, not memory."),
+                ("Employee questions",
+                 "\u201cCan I accept this?\u201d answered from the "
+                 "policy itself, with the page to prove it."),
+            ]
+            for title, body in use_cases:
                 with st.container(border=True):
                     st.markdown(f"**{title}**")
                     st.write(body)
-    st.write("Ask about an Asteron policy, or describe a situation "
-             "at work. Answers come from the policies themselves, "
-             "with the sources under each answer, and when no policy "
-             "covers it the chat says so instead of guessing.")
-    if collection is None:
-        st.warning("The knowledge base is not built yet, so the chat "
-                   "cannot look anything up. Build it with the "
-                   "pipeline steps first (see the How it was built "
-                   "tab).")
-    st.write("Or start from a sample situation:")
-    chip_cols = st.columns(3)
-    for i, sample in enumerate(SAMPLES):
-        if chip_cols[i % 3].button(sample["label"],
-                                   key=f"chat_chip_{i}"):
-            st.session_state.chat_pending = sample["complaint"]
-    for idx, msg in enumerate(st.session_state.chat_messages):
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg["role"] == "assistant" and msg.get("used"):
-                st.markdown("**Sources**")
-                show_matches(msg["used"], key_prefix=f"chat{idx}_")
-            if msg["role"] == "assistant":
-                chat_cost_caption(msg.get("tokens"), price,
-                                  chat_in_price, chat_out_price)
-    if st.session_state.chat_messages:
-        if st.button("Clear conversation", key="clear_chat"):
-            st.session_state.chat_messages = []
+        with st.expander("Sample situations", expanded=False):
+            st.write("Start from a sample situation:")
+            for i, sample in enumerate(SAMPLES):
+                if st.button(sample["label"], key=f"chat_chip_{i}",
+                             use_container_width=True):
+                    st.session_state.chat_pending = sample["complaint"]
+    with chat_col:
+        st.markdown("### \U0001f4ac Ask Kat Intelligence")
+        if collection is None:
+            st.warning("The knowledge base is not built yet, so the "
+                       "chat cannot look anything up. Build it with "
+                       "the pipeline steps first (see the How it was "
+                       "built tab).")
+        with st.form("chat_form", clear_on_submit=True):
+            ask_cols = st.columns([5, 1])
+            question = ask_cols[0].text_input(
+                "Your question",
+                placeholder="Ask about an Asteron policy, or "
+                            "describe a situation\u2026",
+                label_visibility="collapsed")
+            sent = ask_cols[1].form_submit_button(
+                "Ask", type="primary", use_container_width=True)
+        st.caption("Answers come from the policies themselves, with "
+                   "the sources under each answer. When no policy "
+                   "covers it, the chat says so instead of guessing.")
+        new_text = (question if sent else None) or \
+            st.session_state.chat_pending
+        if new_text:
             st.session_state.chat_pending = None
-            st.rerun()
-    prompt = st.chat_input(
-        "Ask about an Asteron policy, or describe a situation…")
-    new_text = prompt or st.session_state.chat_pending
-    if new_text:
-        st.session_state.chat_pending = None
-        st.session_state.chat_messages.append(
-            {"role": "user", "content": new_text})
-        assistant_idx = len(st.session_state.chat_messages)
-        with st.chat_message("user"):
-            st.markdown(new_text)
-        tokens = None
-        with st.chat_message("assistant"):
-            if collection is None:
-                answer = ("The knowledge base is not built yet, so I "
-                          "cannot look that up. Build it with the "
-                          "pipeline steps first.")
-                used = []
-                st.markdown(answer)
-            elif not api_key:
-                answer = ("No OpenAI API key is configured, so I "
-                          "cannot search the policies. Add the key to "
-                          "the app's secrets and try again.")
-                used = []
-                st.markdown(answer)
-            else:
-                slot = st.empty()
-                show_loader(slot, "Reading the policies…")
-                client, result, query_tokens = run_retrieval(new_text)
-                slot.empty()
-                used = result["used"]
-                tokens = {"query": query_tokens or 0,
-                          "prompt": 0, "completion": 0}
-                if used:
-                    answer, usage = stream_explanation(
-                        client, new_text, used)
-                    tokens["prompt"] = usage.get("prompt_tokens", 0)
-                    tokens["completion"] = usage.get(
-                        "completion_tokens", 0)
-                    st.markdown("**Sources**")
-                    show_matches(used,
-                                 key_prefix=f"chat{assistant_idx}_")
-                else:
-                    answer = config.NO_MATCH_MESSAGE
+            st.session_state.chat_messages.append(
+                {"role": "user", "content": new_text})
+            assistant_idx = len(st.session_state.chat_messages)
+            with st.chat_message("user"):
+                st.markdown(new_text)
+            tokens = None
+            with st.chat_message("assistant"):
+                if collection is None:
+                    answer = ("The knowledge base is not built yet, "
+                              "so I cannot look that up. Build it "
+                              "with the pipeline steps first.")
+                    used = []
                     st.markdown(answer)
-                chat_cost_caption(tokens, price, chat_in_price,
-                                  chat_out_price)
-        st.session_state.chat_messages.append(
-            {"role": "assistant", "content": answer, "used": used,
-             "tokens": tokens})
-        st.rerun()
+                elif not api_key:
+                    answer = ("No OpenAI API key is configured, so I "
+                              "cannot search the policies. Add the "
+                              "key to the app's secrets and try "
+                              "again.")
+                    used = []
+                    st.markdown(answer)
+                else:
+                    slot = st.empty()
+                    show_loader(slot, "Reading the policies\u2026")
+                    client, result, query_tokens = \
+                        run_retrieval(new_text)
+                    slot.empty()
+                    used = result["used"]
+                    tokens = {"query": query_tokens or 0,
+                              "prompt": 0, "completion": 0}
+                    if used:
+                        answer, usage = stream_explanation(
+                            client, new_text, used)
+                        tokens["prompt"] = usage.get(
+                            "prompt_tokens", 0)
+                        tokens["completion"] = usage.get(
+                            "completion_tokens", 0)
+                        st.markdown("**Sources**")
+                        show_matches(
+                            used,
+                            key_prefix=f"chat{assistant_idx}_")
+                    else:
+                        answer = config.NO_MATCH_MESSAGE
+                        st.markdown(answer)
+                    chat_cost_caption(tokens, price, chat_in_price,
+                                      chat_out_price)
+            st.session_state.chat_messages.append(
+                {"role": "assistant", "content": answer, "used": used,
+                 "tokens": tokens})
+            st.rerun()
+        if st.session_state.chat_messages:
+            if st.button("Clear conversation", key="clear_chat"):
+                st.session_state.chat_messages = []
+                st.session_state.chat_pending = None
+                st.rerun()
+        messages = st.session_state.chat_messages
+        pairs = [(i, messages[i], messages[i + 1])
+                 for i in range(0, len(messages) - 1, 2)]
+        for user_i, user_msg, asst_msg in reversed(pairs):
+            with st.chat_message("user"):
+                st.markdown(user_msg["content"])
+            with st.chat_message("assistant"):
+                st.markdown(asst_msg["content"])
+                if asst_msg.get("used"):
+                    st.markdown("**Sources**")
+                    show_matches(asst_msg["used"],
+                                 key_prefix=f"chat{user_i + 1}_")
+                chat_cost_caption(asst_msg.get("tokens"), price,
+                                  chat_in_price, chat_out_price)
 
 # ---------------------------------------------------------------- policies
 with tab_policies:
@@ -747,25 +813,7 @@ with tab_policies:
         if pdf_path.exists():
             if cols[3].button("Preview",
                               key=f"preview_policy_{entry['slug']}"):
-                st.session_state.policy_preview = entry["slug"]
-    if st.session_state.policy_preview:
-        selected = next(
-            (e for e in manifest
-             if e["slug"] == st.session_state.policy_preview), None)
-        if selected is not None:
-            pdf_path = config.policies_dir() / selected["file"]
-            st.divider()
-            st.subheader(f"Preview · {selected['title']}")
-            if pdf_path.exists():
-                # Built-in Streamlit PDF viewer: read and page
-                # through the document in the app, no download.
-                st.pdf(pdf_path.read_bytes())
-            else:
-                st.info("That policy file is not packaged with "
-                        "this app yet.")
-            if st.button("Close preview"):
-                st.session_state.policy_preview = None
-                st.rerun()
+                _policy_dialog(entry, pdf_path.read_bytes())
 
 # ---------------------------------------------------------------- pipeline
 with tab_pipeline:
@@ -886,7 +934,27 @@ with tab_lab:
              "finds passages, augmentation assembles them into the "
              "prompt, generation writes the answer from that prompt "
              "only. Uses the sidebar controls.")
-    lab_text = st.text_area("Complaint to inspect",
+    st.markdown("**The prompt in use** — the exact wording sent to "
+                "the model on every answer, read live from the "
+                "engine's configuration so this view cannot drift "
+                "from what actually runs.")
+    st.markdown("System prompt — the same on every request:")
+    st.code(config.SYSTEM_PROMPT)
+    st.markdown("User message — built fresh each time. The "
+                "employee's words go in at the top; the passages the "
+                "retrieval stage found are filled in underneath:")
+    st.code(
+        "Message from an employee:\n"
+        "<the employee's exact words>\n\n"
+        "Policy passages retrieved:\n"
+        "[Source 1] <policy title> - <section> (page <n>)\n"
+        "<passage text, filled in from the knowledge base>\n\n"
+        "[Source 2] <policy title> - <section> (page <n>)\n"
+        "<passage text, filled in from the knowledge base>")
+    st.caption(f"Sent to {config.CHAT_MODEL} at temperature 0.2. "
+               "When no passage passes the threshold and K filters, "
+               "no prompt is built and the model is never called.")
+    lab_text = st.text_area("Message to inspect",
                             value=SAMPLES[0]["complaint"], height=110,
                             key="lab_complaint")
     if st.button("Run the stages", key="lab_run"):

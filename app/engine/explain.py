@@ -25,7 +25,7 @@ def build_context(used: list[dict]) -> str:
 
 
 def build_messages(complaint: str, used: list[dict]) -> list[dict]:
-    user = (f"Complaint received:\n{complaint}\n\n"
+    user = (f"Message from an employee:\n{complaint}\n\n"
             f"Policy passages retrieved:\n{build_context(used)}")
     return [{"role": "system", "content": config.SYSTEM_PROMPT},
             {"role": "user", "content": user}]
