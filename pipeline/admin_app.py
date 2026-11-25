@@ -107,6 +107,42 @@ for label, script in STEPS:
                      or "The step failed — see the message in the "
                         "output above.")
 
+st.markdown("**How each step works — what we did, and what we assumed**")
+st.markdown(
+    "**1 · Extract.** *Did:* PyMuPDF reads each PDF page by page, in "
+    "blocks. Every block keeps its page number and the current section "
+    "heading, taken from numbered headings like \u201c4. Gifts and "
+    "hospitality\u201d. The title and version lines on page 1 are "
+    "skipped — they describe the document, they are not content. "
+    "*Assumed:* the letterhead and footer sit in fixed bands at the "
+    "top and bottom of every page, so they are dropped by position. "
+    "True for documents from one template; a generic handler would "
+    "instead detect lines that repeat across pages.\n\n"
+    "**2 · Clean.** *Did:* whitespace only — line endings normalised, "
+    "runs of spaces collapsed, extra blank lines removed. *Assumed:* "
+    "the policy's own words are the source of truth, so no word is "
+    "ever added, removed or rewritten.\n\n"
+    "**3 · Chunk.** *Did:* segments are packed in order into chunks "
+    "of at most 1,600 characters, never crossing a section boundary; "
+    "the next chunk starts with a short overlap from the previous "
+    "one's tail, and a too-short final chunk is merged into its "
+    "neighbour. Each chunk records its document, section and page "
+    "range. *Assumed:* a section is the natural unit of meaning in a "
+    "policy, so chunks hold whole sections, not arbitrary slices.\n\n"
+    "**4 · Embed.** *Did:* tokens are counted and the cost estimated "
+    "before any API call, at the price in the calculator above. Each "
+    "chunk's text is hashed with SHA-256; a chunk whose hash already "
+    "has an embedding is skipped, so re-runs never pay twice. If a "
+    "policy changes, the changed text produces a new hash that does "
+    "not match, so exactly those chunks are embedded again. "
+    "*Assumed:* identical text always deserves the identical vector.\n\n"
+    "**5 · Store.** *Did:* chunks and vectors are upserted into "
+    "ChromaDB by chunk id, with title, section and page range as "
+    "metadata — upsert means a changed chunk replaces its old vector "
+    "instead of duplicating. *Assumed:* one collection per tenant is "
+    "enough at this scale; production swaps the folder for Azure AI "
+    "Search with the same chunks and vectors.")
+
 st.header("3 · Knowledge base status")
 if config.CHROMA_DIR.exists():
     import chromadb
