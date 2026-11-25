@@ -8,6 +8,7 @@ page, with the passage highlighted.
 Tabs: Playground - Policies - How it was built - Retrieval Lab.
 """
 
+import base64
 import json
 import os
 import sys
@@ -27,8 +28,16 @@ import highlight  # noqa: E402
 import retriever  # noqa: E402
 from samples import SAMPLES  # noqa: E402
 
-st.set_page_config(page_title="Kat Intelligence - Asteron Global",
-                   page_icon="🛡️", layout="wide")
+def _icon_path() -> str:
+    for candidate in (APP_DIR / "assets" / "guardkat-logo.png",
+                      APP_DIR.parent / "assets" / "guardkat-logo.png"):
+        if candidate.exists():
+            return str(candidate)
+    return "🛡️"
+
+
+st.set_page_config(page_title="Kat Intelligence · by GuardKat",
+                   page_icon=_icon_path(), layout="wide")
 
 
 # ---------------------------------------------------------------- keys
@@ -62,12 +71,18 @@ def get_collection():
         return None
 
 
-def logo_path() -> Path | None:
-    for candidate in (APP_DIR / "assets" / "asteron-logo.svg",
-                      APP_DIR.parent / "assets" / "asteron-logo.svg"):
+def asset_path(name: str) -> Path | None:
+    for candidate in (APP_DIR / "assets" / name,
+                      APP_DIR.parent / "assets" / name):
         if candidate.exists():
             return candidate
     return None
+
+
+def img_data_uri(path: Path) -> str:
+    mime = "image/png" if path.suffix == ".png" else "image/svg+xml"
+    encoded = base64.b64encode(path.read_bytes()).decode()
+    return f"data:{mime};base64,{encoded}"
 
 
 def load_manifest() -> list[dict]:
@@ -110,22 +125,68 @@ collection = get_collection()
 api_key = get_api_key()
 
 # ---------------------------------------------------------------- header
-logo = logo_path()
-cols = st.columns([1, 5])
-with cols[0]:
-    if logo:
-        st.image(str(logo))
-with cols[1]:
-    st.title("Kat Intelligence")
-    st.caption("A GuardKat proof of concept · Demonstration tenant: "
-               "Asteron Global (fictional) · Every policy below is fake "
-               "and written for this demo.")
+BRAND_CSS = """
+<style>
+.gk-brand {text-align: center; padding: 0.4rem 0 0.2rem;}
+.gk-logos {display: flex; justify-content: center; align-items: flex-end;
+  gap: 20px;}
+.gk-logo-name {font-size: 11px; letter-spacing: 2px; color: #607d8b;
+  font-weight: 600; margin-top: 4px;}
+.gk-x {font-size: 22px; color: #90a4ae; padding-bottom: 30px;}
+.gk-title {font-size: 2.4rem; margin: 0.6rem 0 0.1rem; color: #263238;}
+.gk-sub {color: #546e7a; font-size: 0.98rem; margin: 0 auto;
+  max-width: 660px;}
+.gk-loader {display: flex; flex-direction: column; align-items: center;
+  padding: 16px 0 4px;}
+.gk-ring {position: relative; width: 104px; height: 104px;}
+.gk-ring:before {content: ""; position: absolute; inset: 0;
+  border-radius: 50%; border: 5px solid #e0e0e0;
+  border-top-color: #d98e2b; animation: gkspin 1.4s linear infinite;}
+.gk-ring img {position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); height: 62px;}
+@keyframes gkspin {to {transform: rotate(360deg);}}
+.gk-loader-text {margin-top: 10px; color: #546e7a; font-size: 0.92rem;}
+.gk-footer {text-align: center; color: #78909c; font-size: 0.82rem;}
+</style>
+"""
+
+
+def render_brand_header():
+    st.markdown(BRAND_CSS, unsafe_allow_html=True)
+    blocks = []
+    gk = asset_path("guardkat-logo.png")
+    if gk:
+        blocks.append(
+            f'<div><img src="{img_data_uri(gk)}" style="height:74px">'
+            '<div class="gk-logo-name">GUARDKAT</div></div>')
+    ast = asset_path("asteron-logo.svg")
+    if ast:
+        blocks.append(
+            f'<div><img src="{img_data_uri(ast)}" style="height:74px">'
+            '<div class="gk-logo-name">ASTERON GLOBAL</div></div>')
+    logos = '<div class="gk-x">×</div>'.join(blocks)
+    st.markdown(
+        f'<div class="gk-brand"><div class="gk-logos">{logos}</div>'
+        '<h1 class="gk-title">Kat Intelligence</h1>'
+        '<p class="gk-sub">GuardKat\u2019s document intelligence, '
+        'running on a fictional company. When a concern is reported, '
+        'it finds the policies that apply and opens them on the exact '
+        'page.</p></div>',
+        unsafe_allow_html=True)
+
+
+render_brand_header()
 
 # ---------------------------------------------------------------- sidebar
 MODES = {"Threshold (recommended)": "threshold",
          "Fixed Top-K": "fixed_k",
          "Dynamic K (stop at the cliff)": "dynamic_k"}
 with st.sidebar:
+    _gk = asset_path("guardkat-logo.png")
+    if _gk:
+        _brand_cols = st.columns([1, 3])
+        _brand_cols[0].image(str(_gk), width=44)
+        _brand_cols[1].markdown("**GuardKat**\n\nKat Intelligence")
     st.header("Retrieval controls")
     mode_label = st.radio("Mode", list(MODES), index=0)
     mode = MODES[mode_label]
@@ -152,6 +213,17 @@ with st.sidebar:
                "extraction, chunking, text-embedding-3-small, ChromaDB, "
                "gpt-4o-mini explanations grounded only in the chunks "
                "shown.")
+
+
+def show_loader(slot, text: str):
+    """The GuardKat loader: the meerkat inside a spinning ring, the
+    same pattern as the GuardKat website's loading screen."""
+    gk = asset_path("guardkat-logo.png")
+    img = f'<img src="{img_data_uri(gk)}">' if gk else ""
+    slot.markdown(
+        f'<div class="gk-loader"><div class="gk-ring">{img}</div>'
+        f'<div class="gk-loader-text">{text}</div></div>',
+        unsafe_allow_html=True)
 
 
 def run_retrieval(complaint: str):
@@ -189,9 +261,11 @@ def show_matches(used: list[dict]):
         preview_key = hit["chunk_id"]
         if st.button(f"Preview page {hit['page_start']} with the passage "
                      f"highlighted", key=f"preview_{preview_key}"):
-            with st.spinner("Rendering the page..."):
-                st.session_state.previews[preview_key] = \
-                    highlight.render_for_hit(hit)
+            slot = st.empty()
+            show_loader(slot, "Opening the policy at the exact page…")
+            st.session_state.previews[preview_key] = \
+                highlight.render_for_hit(hit)
+            slot.empty()
         if preview_key in st.session_state.previews:
             rendered = st.session_state.previews[preview_key]
             st.image(rendered["png"])
@@ -210,6 +284,59 @@ tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
 
 # ---------------------------------------------------------------- home
 with tab_home:
+    st.markdown("### What is this?")
+    st.write(
+        "Every company has policies: a code of conduct, rules on gifts, "
+        "harassment, expenses, data and more. The problem is finding the "
+        "right one at the moment it matters. When an employee reports a "
+        "concern, the person handling the case usually has to search "
+        "shared drives and old emails to find which policy applies.\n\n"
+        "Kat Intelligence removes that search. The company's own policy "
+        "documents are read in advance and kept ready. The moment a "
+        "concern is reported, it finds the passages that apply, explains "
+        "them in plain words, and opens each document on the exact page.")
+    st.markdown("### Why companies use it")
+    benefit_cols = st.columns(3)
+    with benefit_cols[0]:
+        with st.container(border=True):
+            st.markdown("**The right policy, in seconds**")
+            st.write("The matching policies arrive with the case. "
+                     "Nobody digs through folders, and a new investigator "
+                     "is as well briefed as a senior one.")
+    with benefit_cols[1]:
+        with st.container(border=True):
+            st.markdown("**The exact page, highlighted**")
+            st.write("Every match opens the real document on the page "
+                     "that matters, with the passage highlighted, so "
+                     "anyone can check it with one click.")
+    with benefit_cols[2]:
+        with st.container(border=True):
+            st.markdown("**Honest when nothing matches**")
+            st.write("If no policy covers the concern, it says so "
+                     "instead of guessing. People make the decisions; "
+                     "Kat Intelligence brings the right pages.")
+    st.markdown("### Where it helps")
+    use_cols = st.columns(4)
+    use_cases = [
+        ("Speak-up reports",
+         "A whistleblowing report arrives, and the policies that govern "
+         "it are attached to the case from the start."),
+        ("Harassment inquiries",
+         "The inquiry committee sees the exact clauses, timelines and "
+         "steps the policy promises."),
+        ("Compliance checks",
+         "Gifts, conflicts of interest and expense claims checked "
+         "against the written rule, not memory."),
+        ("Employee questions",
+         "\u201cCan I accept this?\u201d answered from the policy "
+         "itself, with the page to prove it."),
+    ]
+    for col, (title, body) in zip(use_cols, use_cases):
+        with col:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.write(body)
+    st.divider()
     st.subheader("Imagine you work at Asteron Global. What happened?")
     st.write("Describe a workplace problem in your own words. Kat "
              "Intelligence searches Asteron's policy documents and "
@@ -241,9 +368,12 @@ with tab_home:
             st.error("No OpenAI key is configured, so the complaint "
                      "cannot be embedded.")
         else:
+            slot = st.empty()
             try:
-                with st.spinner("Searching Asteron's policies..."):
-                    client, result = run_retrieval(text)
+                show_loader(slot, "Kat Intelligence is reading "
+                                  "Asteron's policies…")
+                client, result = run_retrieval(text)
+                slot.empty()
                 st.session_state.result = result
                 st.session_state.explanation = ""
                 if result["grounded"]:
@@ -252,6 +382,7 @@ with tab_home:
                 else:
                     st.session_state.result = result
             except Exception as exc:
+                slot.empty()
                 st.error(f"Something went wrong: {exc}")
                 st.session_state.result = None
 
@@ -375,3 +506,14 @@ with tab_lab:
                             "That restraint is deliberate.")
             except Exception as exc:
                 st.error(f"Something went wrong: {exc}")
+
+# ---------------------------------------------------------------- footer
+st.divider()
+st.markdown(
+    '<p class="gk-footer">Kat Intelligence is a GuardKat concept, '
+    'shown here as a working proof of concept. Asteron Global is a '
+    'fictional company and its policies are samples written for this '
+    'demo. In GuardKat, the same idea works on a company\u2019s own '
+    'policies, inside its own tenant, visible only to its own '
+    'case team.</p>',
+    unsafe_allow_html=True)

@@ -18,12 +18,18 @@ PIPELINE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PIPELINE_DIR))
 import config
 
+_GK_LOGO = PIPELINE_DIR.parent / "assets" / "guardkat-logo.png"
 st.set_page_config(page_title="Kat Intelligence - Tenant Admin",
-                   page_icon="🛡️")
-st.title("Kat Intelligence · Tenant Admin")
-st.caption("Asteron Global (demonstration tenant). Uploads stay on this "
-           "machine; only the finished knowledge base ships with the "
-           "public playground.")
+                   page_icon=str(_GK_LOGO) if _GK_LOGO.exists() else "🛡️")
+_brand = st.columns([1, 6])
+if _GK_LOGO.exists():
+    _brand[0].image(str(_GK_LOGO))
+with _brand[1]:
+    st.title("Kat Intelligence · Tenant Admin")
+    st.caption("A GuardKat concept · Asteron Global (demonstration "
+               "tenant). Uploads stay on this machine; only the "
+               "finished knowledge base ships with the public "
+               "playground.")
 
 st.header("1 · Upload policy PDFs")
 uploads = st.file_uploader("Policy documents (PDF only)",
