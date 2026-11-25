@@ -1,9 +1,10 @@
 """Tests for the Kat Intelligence playground engine (no OpenAI key).
 
-Retrieval modes are tested against a tiny Chroma collection whose
-vectors sit at known cosine similarities to the query. The highlight
-renderer is tested against the real generated policy PDFs. The
-explainer is tested for its contract: no matches, no model call.
+The independent threshold and K filters are tested against a tiny
+Chroma collection whose vectors sit at known cosine similarities to
+the query. The highlight renderer is tested against the real
+generated policy PDFs. The explainer is tested for its contract:
+no matches, no model call.
 """
 
 import json
@@ -45,29 +46,48 @@ def collection(tmp_path):
     return coll
 
 
-def run_mode(collection, mode, **kw):
+def run_filters(collection, **kw):
     return retriever.retrieve(collection, lambda _q: vec(1.0), "anything",
-                              mode, **kw)
+                              **kw)
 
 
-def test_fixed_k_takes_top_k_regardless(collection):
-    out = run_mode(collection, "fixed_k", top_k=2)
+def test_fixed_k_caps_the_survivors(collection):
+    out = run_filters(collection, threshold=0.0, k_mode="fixed",
+                      fixed_k=2)
     assert [h["chunk_id"] for h in out["used"]] == ["c0", "c1"]
     assert out["grounded"] is True
 
 
-def test_threshold_filters_and_can_return_nothing(collection):
-    out = run_mode(collection, "threshold", threshold=0.50, max_k=5)
+def test_threshold_filters_on_its_own(collection):
+    out = run_filters(collection, threshold=0.50, k_mode="fixed",
+                      fixed_k=5)
     assert [h["chunk_id"] for h in out["used"]] == ["c0", "c1", "c2"]
-    out = run_mode(collection, "threshold", threshold=0.95, max_k=5)
+    out = run_filters(collection, threshold=0.95, k_mode="fixed",
+                      fixed_k=5)
     assert out["used"] == [] and out["grounded"] is False
 
 
-def test_dynamic_k_stops_at_the_cliff(collection):
-    out = run_mode(collection, "dynamic_k", threshold=0.35, max_k=5)
+def test_both_filters_together(collection):
+    # The threshold leaves three survivors; fixed K caps them to two.
+    # Neither filter switches the other off.
+    out = run_filters(collection, threshold=0.50, k_mode="fixed",
+                      fixed_k=2)
     assert [h["chunk_id"] for h in out["used"]] == ["c0", "c1"]
-    out = run_mode(collection, "dynamic_k", threshold=0.95, max_k=5)
+
+
+def test_dynamic_k_stops_at_the_cliff(collection):
+    out = run_filters(collection, threshold=0.35, k_mode="dynamic",
+                      max_k=5)
+    assert [h["chunk_id"] for h in out["used"]] == ["c0", "c1"]
+    out = run_filters(collection, threshold=0.95, k_mode="dynamic",
+                      max_k=5)
     assert out["used"] == []
+
+
+def test_dynamic_k_respects_its_cap(collection):
+    out = run_filters(collection, threshold=0.0, k_mode="dynamic",
+                      max_k=1)
+    assert [h["chunk_id"] for h in out["used"]] == ["c0"]
 
 
 def _real_chunk(slug: str, needle: str) -> dict:

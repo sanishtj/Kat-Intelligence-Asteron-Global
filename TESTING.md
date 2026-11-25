@@ -8,9 +8,10 @@ guessed — the same discipline as the bootcamp chatbot's test pass
 ## Setup under test
 
 - Knowledge base: 10 Asteron policies, 119 chunks, text-embedding-3-small.
-- App defaults at the start of the pass: mode = threshold,
-  threshold = 35%, max K = 5. These are starting points to be replaced
-  by whatever the evidence supports.
+- App defaults at the start of the pass: threshold = 35%, K =
+  dynamic with a cap of 5 (the two filters are independent and both
+  always on). These are starting points to be replaced by whatever
+  the evidence supports.
 
 ## The six samples and what should happen
 
@@ -43,8 +44,9 @@ guessed — the same discipline as the bootcamp chatbot's test pass
   something the policy does not cover (e.g. harassment policy asked
   about a salary dispute) — the explanation layer should decline the
   uncovered part, the bootcamp's defence-in-depth pattern.
-- Mode comparison on sample 3: fixed K = 3 vs threshold vs dynamic K —
-  the playground's teaching moment; record where they differ.
+- Settings comparison on sample 3: fixed K = 3 vs dynamic K at the
+  same threshold — the playground's teaching moment; record where
+  they differ.
 
 ## Choosing the shipped defaults
 
@@ -54,7 +56,7 @@ guessed — the same discipline as the bootcamp chatbot's test pass
   chosen in the bootcamp (gap between 12.5% irrelevant and 38.3%
   weakest answerable).
 - If dynamic K with the 8-point cliff rule selects the same used set
-  as threshold mode on all five matching samples, keep threshold as
-  the default and keep dynamic K as a playground option.
+  as a generous fixed K on all five matching samples, keep dynamic
+  as the default K behaviour.
 - Record the final numbers and the reasoning here when the pass is
   done, and update engine/config.py defaults to match.

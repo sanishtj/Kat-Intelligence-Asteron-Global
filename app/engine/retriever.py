@@ -1,13 +1,19 @@
-"""Retrieval with three selectable modes, for the playground controls.
+"""Retrieval with two independent filters: a threshold and K.
 
-- fixed_k:   take the top K chunks, whatever their scores. Shows why a
-             bare Top-K can drag in weak matches.
-- threshold: take every chunk at or above the relevance threshold, up
-             to a maximum K. The honest mode: it can return nothing.
-- dynamic_k: start from the best chunk and keep taking chunks while
-             each next score stays close to the previous one; stop at
-             the cliff where scores fall away, or at max K. The top
-             chunk must still clear the threshold.
+The threshold runs on its own. Every chunk scoring at or above it is
+relevant enough to use; every chunk below it is out, whatever K says.
+If nothing clears the threshold, the complaint honestly matches
+nothing.
+
+K runs on its own. It decides how many of the surviving chunks are
+actually used, in one of two ways:
+
+- fixed:   take exactly the first K survivors.
+- dynamic: start from the best survivor and keep taking chunks while
+           each next score stays close to the previous one; stop at
+           the cliff where scores fall away, or at the maximum K.
+
+Both filters are always on and neither disables the other.
 
 Similarity is 1 - cosine distance, as a fraction (0.508 means 50.8%).
 """
@@ -43,35 +49,38 @@ def _hits(collection, query_embedding, pool: int) -> list[dict]:
     return hits
 
 
-def apply_mode(candidates: list[dict], mode: str, top_k: int,
-               threshold: float, max_k: int,
-               drop_points: float = config.DYNAMIC_DROP_POINTS
-               ) -> list[dict]:
-    if mode == "fixed_k":
-        return candidates[:top_k]
-    if mode == "threshold":
-        return [h for h in candidates
-                if h["similarity"] >= threshold][:max_k]
-    if mode == "dynamic_k":
-        if not candidates or candidates[0]["similarity"] < threshold:
+def apply_filters(candidates: list[dict], threshold: float, k_mode: str,
+                  fixed_k: int, max_k: int,
+                  drop_points: float = config.DYNAMIC_DROP_POINTS
+                  ) -> list[dict]:
+    """First the threshold on its own, then K on its own."""
+    survivors = [h for h in candidates
+                 if h["similarity"] >= threshold]
+    if k_mode == "fixed":
+        return survivors[:fixed_k]
+    if k_mode == "dynamic":
+        if not survivors:
             return []
-        used = [candidates[0]]
-        for prev, nxt in zip(candidates, candidates[1:]):
+        used = [survivors[0]]
+        for prev, nxt in zip(survivors, survivors[1:]):
             if len(used) >= max_k:
                 break
             if prev["similarity"] - nxt["similarity"] > drop_points:
                 break
             used.append(nxt)
         return used
-    raise ValueError(f"unknown retrieval mode: {mode}")
+    raise ValueError(f"unknown K behaviour: {k_mode}")
 
 
-def retrieve(collection, embed_fn, query_text: str, mode: str,
-             top_k: int = config.TOP_K_DEFAULT,
+def retrieve(collection, embed_fn, query_text: str,
              threshold: float = config.THRESHOLD_DEFAULT,
+             k_mode: str = config.K_MODE_DEFAULT,
+             fixed_k: int = config.TOP_K_DEFAULT,
              max_k: int = config.MAX_K_DEFAULT) -> dict:
     embedding = embed_fn(query_text)
     candidates = _hits(collection, embedding, config.CANDIDATE_POOL)
-    used = apply_mode(candidates, mode, top_k, threshold, max_k)
+    used = apply_filters(candidates, threshold, k_mode, fixed_k, max_k)
     return {"candidates": candidates, "used": used,
-            "grounded": len(used) > 0, "mode": mode}
+            "grounded": len(used) > 0,
+            "settings": {"threshold": threshold, "k_mode": k_mode,
+                         "fixed_k": fixed_k, "max_k": max_k}}

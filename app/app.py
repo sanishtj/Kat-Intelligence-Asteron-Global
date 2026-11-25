@@ -224,9 +224,6 @@ def render_brand_header():
 render_brand_header()
 
 # ---------------------------------------------------------------- sidebar
-MODES = {"Threshold (recommended)": "threshold",
-         "Fixed Top-K": "fixed_k",
-         "Dynamic K (stop at the cliff)": "dynamic_k"}
 with st.sidebar:
     _gk = asset_path("guardkat-logo.png")
     if _gk:
@@ -234,20 +231,27 @@ with st.sidebar:
         _brand_cols[0].image(str(_gk), width=44)
         _brand_cols[1].markdown("**GuardKat**\n\nKat Intelligence")
     st.header("Retrieval controls")
-    mode_label = st.radio("Mode", list(MODES), index=0)
-    mode = MODES[mode_label]
+    st.write("Two independent filters. The threshold decides which "
+             "passages are relevant enough. K decides how many of "
+             "those passages are used. Both are always on, and "
+             "neither switches the other off.")
     threshold_pct = st.slider(
         "Relevance threshold (%)", 5, 95,
         int(config.THRESHOLD_DEFAULT * 100),
-        disabled=(mode == "fixed_k"),
-        help="Chunks scoring below this are not used. In threshold and "
-             "dynamic modes, a complaint can honestly match nothing.")
-    top_k = st.number_input("Top-K (fixed mode)", 1, 10,
-                            config.TOP_K_DEFAULT,
-                            disabled=(mode != "fixed_k"))
-    max_k = st.number_input("Maximum K (threshold / dynamic)", 1, 10,
-                            config.MAX_K_DEFAULT,
-                            disabled=(mode == "fixed_k"))
+        help="Passages scoring below this are never used, whatever K "
+             "says. If nothing clears it, the complaint honestly "
+             "matches nothing.")
+    k_label = st.radio(
+        "How many passages (K)",
+        ["Dynamic — stop at the cliff", "Fixed number"], index=0,
+        help="Dynamic keeps taking passages while their scores stay "
+             "close to the previous one, and stops where they fall "
+             "away. Fixed takes exactly the fixed number below.")
+    k_mode = "dynamic" if k_label.startswith("Dynamic") else "fixed"
+    fixed_k = st.number_input("Passages to use (fixed K)", 1, 10,
+                              config.TOP_K_DEFAULT)
+    max_k = st.number_input("Maximum passages (dynamic K cap)", 1, 10,
+                            config.MAX_K_DEFAULT)
     st.divider()
     if collection is not None:
         st.metric("Policy chunks in the knowledge base",
@@ -292,9 +296,9 @@ def run_retrieval(complaint: str):
         return resp.data[0].embedding
 
     result = retriever.retrieve(
-        collection, embed_fn, complaint, mode,
-        top_k=int(top_k), threshold=threshold_pct / 100.0,
-        max_k=int(max_k))
+        collection, embed_fn, complaint,
+        threshold=threshold_pct / 100.0, k_mode=k_mode,
+        fixed_k=int(fixed_k), max_k=int(max_k))
     return client, result
 
 
@@ -459,8 +463,12 @@ with tab_home:
         if result["grounded"]:
             used = result["used"]
             top_pct = round(used[0]["similarity"] * 100, 1)
+            _s = result["settings"]
+            _k_text = ("dynamic K" if _s["k_mode"] == "dynamic"
+                       else f"fixed K = {_s['fixed_k']}")
             st.success(f"Top match {top_pct}% · {len(used)} policy "
-                       f"passage(s) used · mode: {result['mode']}")
+                       f"passage(s) used · threshold "
+                       f"{int(_s['threshold'] * 100)}% · {_k_text}")
             if st.session_state.explanation:
                 st.markdown(st.session_state.explanation)
             st.subheader("Policies that match")
@@ -535,12 +543,12 @@ with tab_pipeline:
          _p.get("collection", config.COLLECTION_NAME)),
     ]
     _find = [
-        ("Default retrieval mode", config.MODE_DEFAULT),
+        ("Default K behaviour", "Dynamic — stop at the cliff"),
         ("Relevance threshold",
          f"{int(config.THRESHOLD_DEFAULT * 100)}%"),
-        ("Top-K (fixed mode)", config.TOP_K_DEFAULT),
-        ("Maximum K (threshold / dynamic)", config.MAX_K_DEFAULT),
-        ("Dynamic mode cliff (points)",
+        ("Fixed K (passages)", config.TOP_K_DEFAULT),
+        ("Maximum passages (dynamic K cap)", config.MAX_K_DEFAULT),
+        ("Dynamic K cliff (points)",
          int(config.DYNAMIC_DROP_POINTS * 100)),
         ("Candidates fetched before filtering", config.CANDIDATE_POOL),
         ("Explanation model", config.CHAT_MODEL),
@@ -625,7 +633,8 @@ with tab_lab:
             try:
                 client, result = run_retrieval(lab_text)
                 st.markdown("**Stage 1 · Retrieval** — every candidate, "
-                            "best first. ✓ = used after the mode filter.")
+                            "best first. ✓ = used after the threshold "
+                            "and K filters.")
                 used_ids = {h["chunk_id"] for h in result["used"]}
                 rows = [{
                     "Used": "✓" if h["chunk_id"] in used_ids else "—",

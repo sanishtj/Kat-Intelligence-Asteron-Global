@@ -16,14 +16,16 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 CHAT_MODEL = "gpt-4o-mini"
 
 # Retrieval defaults (similarity is a fraction: 0.35 means 35%).
-MODE_DEFAULT = "threshold"          # fixed_k | threshold | dynamic_k
-TOP_K_DEFAULT = 5                   # fixed_k mode
-THRESHOLD_DEFAULT = 0.35            # threshold + dynamic_k modes
-MAX_K_DEFAULT = 5                   # cap for threshold + dynamic_k modes
-DYNAMIC_DROP_POINTS = 0.08          # dynamic_k: stop when the score
+# Two independent filters, both always on: the threshold decides which
+# chunks are relevant enough, K decides how many of those are used.
+THRESHOLD_DEFAULT = 0.35            # the relevance floor
+K_MODE_DEFAULT = "dynamic"          # dynamic | fixed
+TOP_K_DEFAULT = 5                   # fixed K: passages used
+MAX_K_DEFAULT = 5                   # dynamic K: cap on passages used
+DYNAMIC_DROP_POINTS = 0.08          # dynamic K: stop when the score
                                     # falls more than this below the
                                     # previous chunk's score
-CANDIDATE_POOL = 25                 # chunks fetched before mode filtering
+CANDIDATE_POOL = 25                 # chunks fetched before filtering
 
 NO_MATCH_MESSAGE = (
     "No Asteron policy matched this complaint closely enough to name one "

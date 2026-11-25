@@ -78,7 +78,7 @@ python kb_store.py    # upsert into the ChromaDB folder
 ## Status
 
 Proof of concept, built in phases: corpus and pipeline complete;
-retrieval modes (fixed K, threshold-only, dynamic K), the grounded
+independent threshold and K filters (fixed K or dynamic K), the grounded
 explanation and the highlighted page preview next; then the public
 Streamlit playground and a test pass that sets the default threshold
 and K from measured scores.
