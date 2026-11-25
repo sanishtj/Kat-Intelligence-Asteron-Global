@@ -381,10 +381,17 @@ BRAND_CSS = """
    the stepper itself, because they follow the current step. */
 [class*="st-key-built_step_"] button {display: block;
   margin: 0 auto; width: 52px; height: 52px; border-radius: 50%;
-  font-size: 24px; line-height: 1; padding: 0;
+  font-size: 24px; line-height: 1; padding: 0; position: relative;
+  z-index: 1;
   background: #eceff1; border: 2px solid #cfd8dc; color: #263238;}
 [class*="st-key-built_step_"] button:hover {
   border-color: #d98e2b; color: #263238;}
+/* Each icon wrapper centres its circle and paints its own slice
+   of the joining line behind it (the slice colours are emitted
+   per run, because they follow the current step); the circle
+   itself sits above the line. */
+[class*="st-key-built_step_"] {position: relative;
+  display: flex; justify-content: center;}
 .gk-steplab {text-align: center; font-size: 0.8rem;
   font-weight: 600; color: #78909c; margin-top: 4px;}
 </style>
@@ -1046,6 +1053,25 @@ def built_stepper() -> None:
             look = "background:#eceff1;border-color:#cfd8dc;"
         state_css.append(
             f'[class*="st-key-built_step_{i}"] button {{{look}}}')
+    for i in range(total):
+        # The slice of the joining line this icon's wrapper paints
+        # behind its circle: amber where the walk has passed, half
+        # and half on the current step, grey where it has not
+        # reached. The end slices start and stop at their circle.
+        if i < idx:
+            seg = "#d98e2b"
+        elif i == idx:
+            seg = ("linear-gradient(to right, #d98e2b 0%, "
+                   "#d98e2b 50%, #cfd8dc 50%, #cfd8dc 100%)")
+        else:
+            seg = "#cfd8dc"
+        left = "50%" if i == 0 else "0"
+        right = "50%" if i == total - 1 else "0"
+        state_css.append(
+            f'[class*="st-key-built_step_{i}"]::before '
+            f'{{content:""; position:absolute; top:26px; '
+            f"left:{left}; right:{right}; height:3px; "
+            f"background:{seg}; z-index:0;}}")
     st.markdown(f"<style>{''.join(state_css)}</style>",
                 unsafe_allow_html=True)
     icon_cols = st.columns(total)
@@ -1088,16 +1114,23 @@ def built_stepper() -> None:
         # the Prompt tab itself, so the next move is obvious without
         # a word of instruction. The rule lives only while this step
         # is showing: the fragment re-renders without it afterwards.
+        # The tab strip is named three ways across Streamlit
+        # versions, so the rules name all three; whichever the
+        # running version uses is the one that lands.
+        _lists = ('[data-testid="stTabList"], '
+                  '[data-baseweb="tab-list"], [role="tablist"]')
+        _tabs = ('[data-testid="stTabList"] button:nth-of-type(5), '
+                 '[data-baseweb="tab-list"] button:nth-of-type(5), '
+                 '[role="tablist"] button:nth-of-type(5)')
+        _hands = ", ".join(
+            f"{sel}::after" for sel in _tabs.split(", "))
         st.markdown(
             "<style>"
-            '[role="tablist"] {overflow: visible;}'
-            '[role="tablist"] button[data-testid="stTab"]'
-            ":nth-of-type(5) {position: relative;}"
-            '[role="tablist"] button[data-testid="stTab"]'
-            ':nth-of-type(5)::after {content: "👆"; '
-            "position: absolute; top: 100%; left: 50%; "
-            "font-size: 30px; line-height: 1; z-index: 50; "
-            "pointer-events: none; "
+            f"{_lists} {{overflow: visible !important;}}"
+            f"{_tabs} {{position: relative;}}"
+            f"{_hands} {{content: \"👆\"; position: absolute; "
+            "top: 100%; left: 50%; font-size: 30px; line-height: 1; "
+            "z-index: 50; pointer-events: none; "
             "animation: gkbob 0.9s ease-in-out infinite alternate;}"
             "@keyframes gkbob {"
             "from {transform: translate(-50%, 0);}"
