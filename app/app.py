@@ -1,11 +1,12 @@
-"""Kat Intelligence - Asteron Global playground (the public app).
+"""Kat Intelligence - Asteron Global (the public app).
 
-Home is the playground: describe a workplace complaint as if you were
-an Asteron employee, and Kat Intelligence finds the company policies
-that match it, explains why, and opens the policy PDF at the exact
-page, with the passage highlighted.
+Chat is the front door: describe a workplace complaint as if you
+were an Asteron employee, and Kat Intelligence finds the company
+policies that match it, explains why, and opens the policy PDF at
+the exact page, with the passage highlighted. The Fine-tune tab
+holds the retrieval controls and the model prices.
 
-Tabs: Chat - Playground - Policies - Magic - Prompt.
+Tabs: Chat - Fine-tune - Policies - Magic - Prompt.
 """
 
 import base64
@@ -323,7 +324,7 @@ BRAND_CSS = """
   box-shadow: inset 0 -3px 0 #d98e2b;}
 /* There is no sidebar anywhere in this app: the header
    carries the branding, Chat stays completely clean, and the
-   fine-tuning lives inside the Playground tab. */
+   fine-tuning lives inside the Fine-tune tab. */
 /* The chat box is the centrepiece of the Chat tab: a framed,
    tinted panel with a large input, not a bare text box. */
 [data-testid="stForm"] {border: 2px solid #d98e2b;
@@ -453,16 +454,16 @@ def render_brand_header():
 render_brand_header()
 
 tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
-    ["💬 Chat", "📋 Playground", "📄 Policies", "✨ Magic",
+    ["💬 Chat", "⚙️ Fine-tune", "📄 Policies", "✨ Magic",
      "📝 Prompt"])
 
 # ---------------------------------------------------------------- fine-tuning
-# The tuning lives in the Playground tab, and there is no sidebar
+# The tuning lives in the Fine-tune tab, and there is no sidebar
 # anywhere: the header already carries the branding, and Chat
-# stays clean. This block renders into the Playground panel but
+# stays clean. This block renders into the Fine-tune panel but
 # runs here, before the tab panels further down, because the
-# chat, the playground and the lab all read its values later in
-# the same run.
+# chat, the fine-tune tab and the lab all read its values later
+# in the same run.
 with tab_home:
     with st.container(border=True):
         st.markdown("**🎛️ Fine-tuning** — the retrieval controls "
@@ -600,14 +601,14 @@ def run_retrieval(complaint: str):
 
 
 def _answer_pieces(client, complaint: str, used: list[dict],
-                   usage: dict):
+                   usage: dict, history: list[dict] | None = None):
     """Yield the explanation piece by piece, filling `usage` from
     the stream's final chunk as it passes (include_usage), so
     every answer can carry its real token cost."""
     stream = client.chat.completions.create(
         model=config.CHAT_MODEL, temperature=0.2, stream=True,
         stream_options={"include_usage": True},
-        messages=explain.build_messages(complaint, used))
+        messages=explain.build_messages(complaint, used, history))
     for chunk in stream:
         chunk_usage = getattr(chunk, "usage", None)
         if chunk_usage is not None:
@@ -619,12 +620,14 @@ def _answer_pieces(client, complaint: str, used: list[dict],
             yield chunk.choices[0].delta.content or ""
 
 
-def stream_explanation(client, complaint: str, used: list[dict]):
+def stream_explanation(client, complaint: str, used: list[dict],
+                       history: list[dict] | None = None):
     """Stream the explanation to the page and return (text,
     usage)."""
     usage: dict = {}
     return (st.write_stream(
-        _answer_pieces(client, complaint, used, usage)), usage)
+        _answer_pieces(client, complaint, used, usage, history)),
+        usage)
 
 
 def collect_explanation(client, complaint: str, used: list[dict]):
@@ -790,19 +793,23 @@ with tab_chat:
     chat_col, rail_col = st.columns([3, 1])
     with rail_col:
         # The one route from Chat to the controls: a small
-        # button that clicks the real Playground tab, exactly
+        # button that clicks the real Fine-tune tab, exactly
         # as if it were clicked by hand. Streamlit has no
         # switch-tab call of its own, so the button sits in a
         # tiny frame and clicks the tab in the page around it.
         components.html(
             """
-            <button title="Adjust the retrieval and cost settings in the Playground"
+            <style>
+              html, body {margin: 0; padding: 0;}
+              button {box-sizing: border-box; display: block;}
+            </style>
+            <button title="Adjust the retrieval and cost settings in the Fine-tune tab"
               onclick="window.parent.document.querySelectorAll('[data-testid=stTab]')[1].click()"
               style="width:100%; font-family:'Source Sans Pro',sans-serif; font-size:14px; font-weight:600; padding:7px 10px; color:#263238; background:#fff8ec; border:1.5px solid #d98e2b; border-radius:8px; cursor:pointer">
               ⚙️ Fine-tune
             </button>
             """,
-            height=42)
+            height=44)
         with st.expander("What is this? About Kat Intelligence",
                          expanded=False):
             st.markdown("### What is this?")
@@ -864,6 +871,24 @@ with tab_chat:
                 if st.button(sample["label"], key=f"chat_chip_{i}",
                              use_container_width=True):
                     st.session_state.chat_pending = sample["complaint"]
+        # The session's history lives here in the rail: the
+        # questions asked so far, newest last, with the clear
+        # control under them. The main column shows only the
+        # current exchange; the full record stays in session
+        # state and feeds the follow-up context either way.
+        _questions = [m["content"]
+                      for m in st.session_state.chat_messages
+                      if m["role"] == "user"]
+        if _questions:
+            with st.expander("History", expanded=False):
+                for _q in _questions:
+                    _label = (_q if len(_q) <= 90
+                              else _q[:90].rstrip() + "\u2026")
+                    st.markdown(f"- {_label}")
+                if st.button("Clear conversation", key="clear_chat"):
+                    st.session_state.chat_messages = []
+                    st.session_state.chat_pending = None
+                    st.rerun()
     with chat_col:
         st.markdown("### \U0001f4ac Ask Kat Intelligence")
         if collection is None:
@@ -910,15 +935,30 @@ with tab_chat:
                 else:
                     slot = st.empty()
                     show_loader(slot, "Reading the policies\u2026")
+                    # The conversation so far: the last four
+                    # exchanges ride into the answer prompt as
+                    # context (never as a source of facts), and
+                    # the previous question joins the search text
+                    # so a follow-up retrieves against whatever
+                    # it refers back to.
+                    prior = st.session_state.chat_messages[:-1]
+                    history = [{"role": m["role"],
+                                "content": m["content"]}
+                               for m in prior[-8:]]
+                    prev_q = next(
+                        (m["content"] for m in reversed(prior)
+                         if m["role"] == "user"), None)
+                    search_text = (f"{prev_q}\n{new_text}"
+                                   if prev_q else new_text)
                     client, result, query_tokens = \
-                        run_retrieval(new_text)
+                        run_retrieval(search_text)
                     slot.empty()
                     used = result["used"]
                     tokens = {"query": query_tokens or 0,
                               "prompt": 0, "completion": 0}
                     if used:
                         answer, usage = stream_explanation(
-                            client, new_text, used)
+                            client, new_text, used, history)
                         tokens["prompt"] = usage.get(
                             "prompt_tokens", 0)
                         tokens["completion"] = usage.get(
@@ -936,23 +976,22 @@ with tab_chat:
                 {"role": "assistant", "content": answer, "used": used,
                  "tokens": tokens})
             st.rerun()
-        if st.session_state.chat_messages:
-            if st.button("Clear conversation", key="clear_chat"):
-                st.session_state.chat_messages = []
-                st.session_state.chat_pending = None
-                st.rerun()
+        # The main column keeps the current exchange only: the
+        # latest question and its answer, with sources and the
+        # cost caption. Earlier exchanges live in the rail's
+        # History list and in the follow-up context.
         messages = st.session_state.chat_messages
-        pairs = [(i, messages[i], messages[i + 1])
-                 for i in range(0, len(messages) - 1, 2)]
-        for user_i, user_msg, asst_msg in reversed(pairs):
+        if len(messages) >= 2:
+            user_msg, asst_msg = messages[-2], messages[-1]
             with st.chat_message("user"):
                 st.markdown(user_msg["content"])
             with st.chat_message("assistant"):
                 st.markdown(asst_msg["content"])
                 if asst_msg.get("used"):
                     st.markdown("**Sources**")
-                    show_matches(asst_msg["used"],
-                                 key_prefix=f"chat{user_i + 1}_")
+                    show_matches(
+                        asst_msg["used"],
+                        key_prefix=f"chat{len(messages) - 1}_")
                 chat_cost_caption(asst_msg.get("tokens"), price,
                                   chat_in_price, chat_out_price)
 
@@ -1413,7 +1452,7 @@ with tab_lab:
                   key="lab_run", on_click=_run_lab, type="primary",
                   width="stretch")
     st.caption(f"Sent to {config.CHAT_MODEL} at temperature 0.2, "
-               "using the fine-tuning controls in the Playground. "
+               "using the fine-tuning controls in the Fine-tune tab. "
                "When no passage passes "
                "the threshold and K filters, no prompt is built and "
                "the model is never called.")

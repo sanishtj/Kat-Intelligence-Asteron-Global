@@ -125,11 +125,19 @@ def test_explain_never_calls_model_without_matches():
     assert explain.explain(ExplodingClient(), "anything", []) is None
 
 
-def test_build_messages_carries_complaint_and_sources():
+def test_build_messages_carries_complaint_and_named_policies():
     used = [{"title": "Anti-Bribery and Corruption Policy",
              "section": "4. Gifts", "page_start": 1,
              "text": "Never accept a paid holiday."}]
     messages = explain.build_messages("A vendor offered me a trip.", used)
     assert "vendor offered me a trip" in messages[1]["content"]
-    assert "[Source 1]" in messages[1]["content"]
+    # Passages are labelled with the policy's name, section and
+    # page, never a numbered Source label: answers must cite
+    # policies by name (Sanish, 25 Nov 2026).
+    assert "[Anti-Bribery and Corruption Policy" in messages[1]["content"]
     assert "page 1" in messages[1]["content"]
+    assert "[Source" not in messages[0]["content"]
+    assert "[Source" not in messages[1]["content"]
+    # The system prompt itself carries the naming rule.
+    assert "refer to it by its name" in messages[0]["content"]
+    assert "numbered label" in messages[0]["content"]

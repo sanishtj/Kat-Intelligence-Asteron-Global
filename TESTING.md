@@ -45,7 +45,7 @@ guessed — the same discipline as the bootcamp chatbot's test pass
   about a salary dispute) — the explanation layer should decline the
   uncovered part, the bootcamp's defence-in-depth pattern.
 - Settings comparison on sample 3: fixed K = 3 vs dynamic K at the
-  same threshold — the playground's teaching moment; record where
+  same threshold — the Fine-tune tab's teaching moment; record where
   they differ.
 
 ## Choosing the shipped defaults
