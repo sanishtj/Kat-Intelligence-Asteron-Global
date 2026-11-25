@@ -846,6 +846,12 @@ with tab_home:
              "Intelligence searches Asteron's policy documents and "
              "shows the policies that match, with the exact page for "
              "each one. Try a sample, or write your own.")
+    # The same warning Chat carries under its per-answer
+    # Fine-tune button (Sanish, 25 Nov 2026): a run here is a
+    # fresh try, and the used set can vary between runs.
+    st.warning("Each click runs the question again in Fine-tune. "
+               "The returned chunks stay the same, but the chunks "
+               "the answer uses may vary.")
     chip_cols = st.columns(3)
     for i, sample in enumerate(SAMPLES):
         if chip_cols[i % 3].button(sample["label"],
