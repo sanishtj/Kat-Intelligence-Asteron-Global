@@ -92,6 +92,35 @@ def load_manifest() -> list[dict]:
     return []
 
 
+def pipeline_settings() -> dict:
+    """The decided pipeline configuration, read live from
+    pipeline/config.py when it is on disk, so the web view can never
+    drift from the code that actually ran."""
+    settings: dict = {}
+    try:
+        import importlib.util
+        path = APP_DIR.parent / "pipeline" / "config.py"
+        if path.exists():
+            spec = importlib.util.spec_from_file_location(
+                "pipeline_config", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            settings = {
+                "chunk_max": mod.CHUNK_MAX_CHARS,
+                "chunk_overlap": mod.CHUNK_OVERLAP_CHARS,
+                "chunk_min_tail": mod.CHUNK_MIN_TAIL_CHARS,
+                "min_cleaned": mod.MIN_CLEANED_CHARS,
+                "embedding_model": mod.EMBEDDING_MODEL,
+                "embedding_dims": mod.EMBEDDING_DIMENSIONS,
+                "embedding_price":
+                    mod.EMBEDDING_PRICE_USD_PER_1M_DEFAULT,
+                "collection": mod.COLLECTION_NAME,
+            }
+    except Exception:
+        pass
+    return settings
+
+
 def kb_stats() -> dict:
     """Numbers for the pipeline tab, from whatever is on disk."""
     stats: dict = {}
@@ -443,6 +472,48 @@ with tab_pipeline:
         cols[3].metric("Embedding cost",
                        f"${stats['cost_usd']:.4f}"
                        if "cost_usd" in stats else "—")
+    st.markdown("**The settings we decided** — read live from the "
+                "configuration files, so what you see here is exactly "
+                "what runs. Nothing is hidden in the code.")
+    _p = pipeline_settings()
+    _prep = [
+        ("Chunk size (max characters)", _p.get("chunk_max", "—")),
+        ("Overlap between chunks (characters)",
+         _p.get("chunk_overlap", "—")),
+        ("Smallest tail kept (characters)",
+         _p.get("chunk_min_tail", "—")),
+        ("Shortest text kept after cleaning (characters)",
+         _p.get("min_cleaned", "—")),
+        ("Embedding model",
+         _p.get("embedding_model", config.EMBEDDING_MODEL)),
+        ("Numbers per chunk (vector size)",
+         _p.get("embedding_dims", "—")),
+        ("Embedding price (USD per 1M tokens)",
+         _p.get("embedding_price", "—")),
+        ("Knowledge base collection",
+         _p.get("collection", config.COLLECTION_NAME)),
+    ]
+    _find = [
+        ("Default retrieval mode", config.MODE_DEFAULT),
+        ("Relevance threshold",
+         f"{int(config.THRESHOLD_DEFAULT * 100)}%"),
+        ("Top-K (fixed mode)", config.TOP_K_DEFAULT),
+        ("Maximum K (threshold / dynamic)", config.MAX_K_DEFAULT),
+        ("Dynamic mode cliff (points)",
+         int(config.DYNAMIC_DROP_POINTS * 100)),
+        ("Candidates fetched before filtering", config.CANDIDATE_POOL),
+        ("Explanation model", config.CHAT_MODEL),
+        ("Explanation temperature", 0.2),
+    ]
+    _set_cols = st.columns(2)
+    with _set_cols[0]:
+        st.markdown("*Preparing the documents*")
+        st.dataframe([{"Setting": k, "Value": str(v)} for k, v in _prep],
+                     hide_index=True, use_container_width=True)
+    with _set_cols[1]:
+        st.markdown("*Finding the answers*")
+        st.dataframe([{"Setting": k, "Value": str(v)} for k, v in _find],
+                     hide_index=True, use_container_width=True)
     st.markdown(
         "**Extraction.** Each PDF is read page by page with PyMuPDF. "
         "The page number and the section heading are captured for every "

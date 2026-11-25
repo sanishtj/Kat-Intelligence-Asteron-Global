@@ -45,6 +45,23 @@ st.header("2 · Build the knowledge base")
 st.write("Extract reads each PDF page by page, keeping the page number "
          "and section for every chunk. Embed needs the OpenAI key in "
          ".streamlit/secrets.toml and charges only for new text.")
+st.markdown("**Settings in use** (from config.py — the same values "
+            "the public playground displays)")
+st.dataframe(
+    [{"Setting": k, "Value": str(v)} for k, v in [
+        ("Chunk size (max characters)", config.CHUNK_MAX_CHARS),
+        ("Overlap between chunks (characters)",
+         config.CHUNK_OVERLAP_CHARS),
+        ("Smallest tail kept (characters)", config.CHUNK_MIN_TAIL_CHARS),
+        ("Shortest text kept after cleaning (characters)",
+         config.MIN_CLEANED_CHARS),
+        ("Embedding model", config.EMBEDDING_MODEL),
+        ("Numbers per chunk (vector size)", config.EMBEDDING_DIMENSIONS),
+        ("Embedding price (USD per 1M tokens)",
+         config.EMBEDDING_PRICE_USD_PER_1M_DEFAULT),
+        ("Knowledge base collection", config.COLLECTION_NAME),
+    ]],
+    hide_index=True, use_container_width=True)
 
 STEPS = [("Extract", "extract.py"), ("Clean", "cleaner.py"),
          ("Chunk", "chunker.py"), ("Embed", "embedder.py"),
