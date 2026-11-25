@@ -88,23 +88,49 @@ def embed_all(client, price_per_1m: float) -> dict:
             "records_total": len(records)}
 
 
-def run(price_per_1m: float) -> dict:
-    from openai import OpenAI
+def run(price_per_1m: float) -> dict | None:
+    """Embed with friendly errors: a bad key, a network failure or a
+    missing earlier step prints one clear line and stops, never a
+    traceback. Returns the result dict, or None when it stopped."""
+    from openai import (APIConnectionError, APIError,
+                        AuthenticationError, OpenAI)
 
     import api_key
 
     key = api_key.get_api_key()
     if not key:
-        raise SystemExit(f"Cannot embed: {api_key.key_diagnostics()}")
+        print(f"ERROR: cannot embed. {api_key.key_diagnostics()}")
+        return None
     print(f"OpenAI key: {api_key.mask_key(key)}")
     chunks = load_chunks()
+    if not chunks:
+        print("ERROR: no chunks found. Run the Chunk step first "
+              "(button 3), then run Embed again.")
+        return None
     est = estimate(chunks, price_per_1m)
     print(f"chunks: {est['chunks_total']} total, "
           f"{est['chunks_to_embed']} to embed, "
           f"{est['chunks_skipped']} already embedded")
     print(f"estimated tokens: {est['tokens']}, "
           f"estimated cost: ${est['est_cost_usd']:.4f}")
-    result = embed_all(OpenAI(api_key=key), price_per_1m)
+    try:
+        result = embed_all(OpenAI(api_key=key), price_per_1m)
+    except AuthenticationError:
+        print("ERROR: OpenAI rejected the API key (401). The key in "
+              "pipeline/.streamlit/secrets.toml is wrong - check it "
+              "for a typo (one wrong letter is enough), save the "
+              "file, and run Embed again. Nothing was charged.")
+        return None
+    except APIConnectionError:
+        print("ERROR: could not reach OpenAI. Check the internet "
+              "connection and run Embed again. Nothing was charged "
+              "for the chunks that did not complete.")
+        return None
+    except APIError as exc:
+        print(f"ERROR: OpenAI returned an error: {exc}. "
+              "Nothing was charged for the chunks that did not "
+              "complete; run Embed again to retry them.")
+        return None
     print(f"embedded now: {result['embedded_now']} "
           f"({result['tokens_now']} tokens, ${result['cost_now_usd']:.4f}); "
           f"records total: {result['records_total']}")
@@ -113,6 +139,13 @@ def run(price_per_1m: float) -> dict:
 
 if __name__ == "__main__":
     import os
-    price = float(os.environ.get(
-        "EMBEDDING_PRICE_USD", config.EMBEDDING_PRICE_USD_PER_1M_DEFAULT))
-    run(price)
+    try:
+        price = float(os.environ.get(
+            "EMBEDDING_PRICE_USD",
+            config.EMBEDDING_PRICE_USD_PER_1M_DEFAULT))
+    except ValueError:
+        print("ERROR: EMBEDDING_PRICE_USD is not a number. Fix it or "
+              "remove it to use the default price.")
+        raise SystemExit(1)
+    if run(price) is None:
+        raise SystemExit(1)

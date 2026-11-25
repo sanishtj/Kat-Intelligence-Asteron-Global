@@ -25,7 +25,12 @@ def clean_text(text: str) -> str:
 def clean_all() -> list[dict]:
     config.CLEANED_DIR.mkdir(parents=True, exist_ok=True)
     results = []
-    for path in sorted(config.EXTRACTED_DIR.glob("*.json")):
+    paths = sorted(config.EXTRACTED_DIR.glob("*.json"))
+    if not paths:
+        print("Nothing to clean: no extracted files found. Run the "
+              "Extract step first (button 1).")
+        return results
+    for path in paths:
         data = json.loads(path.read_text(encoding="utf-8"))
         kept = []
         for seg in data["segments"]:
@@ -46,4 +51,8 @@ def clean_all() -> list[dict]:
 
 
 if __name__ == "__main__":
-    clean_all()
+    try:
+        clean_all()
+    except Exception as exc:
+        print(f"ERROR: cleaning failed ({type(exc).__name__}): {exc}")
+        raise SystemExit(1)

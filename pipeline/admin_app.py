@@ -8,6 +8,7 @@ read-only playground app instead.
 Run:  streamlit run admin_app.py
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ import streamlit as st
 PIPELINE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PIPELINE_DIR))
 import config
+from embedder import estimate, load_chunks
 
 _GK_LOGO = PIPELINE_DIR.parent / "assets" / "guardkat-logo.png"
 st.set_page_config(page_title="Kat Intelligence - Tenant Admin",
@@ -62,19 +64,48 @@ st.dataframe(
         ("Knowledge base collection", config.COLLECTION_NAME),
     ]],
     hide_index=True, use_container_width=True)
+st.markdown("**Cost calculator** — what the Embed step will charge, "
+            "shown before it charges anything")
+price = st.number_input(
+    "Embedding price (USD per 1M tokens)", min_value=0.0,
+    value=float(config.EMBEDDING_PRICE_USD_PER_1M_DEFAULT),
+    step=0.01, format="%.4f",
+    help="The price is an input, never a hidden constant. The Embed "
+         "step runs at exactly this price.")
+try:
+    _chunks = load_chunks()
+except Exception:
+    _chunks = []
+if _chunks:
+    _est = estimate(_chunks, price)
+    _cols = st.columns(3)
+    _cols[0].metric("Chunks to embed", _est["chunks_to_embed"])
+    _cols[1].metric("Estimated tokens", _est["tokens"])
+    _cols[2].metric("Estimated cost", f"${_est['est_cost_usd']:.4f}")
+    st.caption(f"Model: {config.EMBEDDING_MODEL} · "
+               f"{_est['chunks_skipped']} chunk(s) already embedded "
+               "and skipped — re-runs never pay twice for the same "
+               "text.")
+else:
+    st.info("Run the Chunk step to see the embedding estimate here.")
 
 STEPS = [("Extract", "extract.py"), ("Clean", "cleaner.py"),
          ("Chunk", "chunker.py"), ("Embed", "embedder.py"),
          ("Store in ChromaDB", "kb_store.py")]
 for label, script in STEPS:
     if st.button(f"Run: {label}"):
+        env = None
+        if script == "embedder.py":
+            env = {**os.environ, "EMBEDDING_PRICE_USD": str(price)}
         with st.spinner(f"Running {label}..."):
             proc = subprocess.run(
                 [sys.executable, script], cwd=PIPELINE_DIR,
-                capture_output=True, text=True)
+                capture_output=True, text=True, env=env)
         st.code(proc.stdout or "(no output)")
         if proc.returncode != 0:
-            st.error(proc.stderr[-2000:])
+            st.error(proc.stderr[-2000:]
+                     or "The step failed — see the message in the "
+                        "output above.")
 
 st.header("3 · Knowledge base status")
 if config.CHROMA_DIR.exists():

@@ -81,7 +81,12 @@ def chunk_document(data: dict) -> list[dict]:
 def chunk_all() -> list[dict]:
     config.CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
     all_chunks = []
-    for path in sorted(config.CLEANED_DIR.glob("*.json")):
+    paths = sorted(config.CLEANED_DIR.glob("*.json"))
+    if not paths:
+        print("Nothing to chunk: no cleaned files found. Run the "
+              "Clean step first (button 2).")
+        return all_chunks
+    for path in paths:
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("status") == "EMPTY":
             print(f"skipped {path.name}: EMPTY")
@@ -98,4 +103,8 @@ def chunk_all() -> list[dict]:
 
 
 if __name__ == "__main__":
-    chunk_all()
+    try:
+        chunk_all()
+    except Exception as exc:
+        print(f"ERROR: chunking failed ({type(exc).__name__}): {exc}")
+        raise SystemExit(1)

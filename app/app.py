@@ -28,6 +28,17 @@ import highlight  # noqa: E402
 import retriever  # noqa: E402
 from samples import SAMPLES  # noqa: E402
 
+try:
+    import tiktoken
+    _enc = tiktoken.get_encoding("cl100k_base")
+except Exception:
+    _enc = None
+
+
+def count_tokens(text: str) -> int | None:
+    """Token count for cost display; None when tiktoken is absent."""
+    return len(_enc.encode(text)) if _enc is not None else None
+
 def _icon_path() -> str:
     for candidate in (APP_DIR / "assets" / "guardkat-logo.png",
                       APP_DIR.parent / "assets" / "guardkat-logo.png"):
@@ -136,17 +147,23 @@ def kb_stats() -> dict:
         stats.setdefault("segments", sum(len(d["segments"]) for d in docs))
     chunks_dir = APP_DIR.parent / "pipeline" / "storage" / "chunks"
     if chunks_dir.exists():
-        stats.setdefault(
-            "chunks",
-            sum(1 for p in chunks_dir.glob("*.jsonl")
-                for line in p.read_text(encoding="utf-8").splitlines()
-                if line.strip()))
+        chunk_texts = []
+        for p in chunks_dir.glob("*.jsonl"):
+            for line in p.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    chunk_texts.append(json.loads(line)["text"])
+        stats.setdefault("chunks", len(chunk_texts))
+        if _enc is not None:
+            stats.setdefault(
+                "tokens",
+                sum(len(_enc.encode(t)) for t in chunk_texts))
     return stats
 
 
 # ---------------------------------------------------------------- state
 for key, default in (("complaint", ""), ("result", None),
-                     ("explanation", ""), ("previews", {})):
+                     ("explanation", ""), ("previews", {}),
+                     ("search_cost", None)):
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -238,6 +255,16 @@ with st.sidebar:
     else:
         st.warning("Knowledge base not built yet.")
     st.write("OpenAI key:", "loaded" if api_key else "not found")
+    st.divider()
+    st.markdown("**Models & cost**")
+    st.write(f"Embedding model: {config.EMBEDDING_MODEL}")
+    st.write(f"Explanation model: {config.CHAT_MODEL}")
+    price = st.number_input(
+        "Embedding price (USD per 1M tokens)", min_value=0.0,
+        value=float(os.environ.get("EMBEDDING_PRICE_USD", 0.02)),
+        step=0.01, format="%.4f", key="embedding_price",
+        help="The price is an input, never a hidden constant. It "
+             "drives every cost figure in this app.")
     st.caption("Built with the pipeline in this repository: page-aware "
                "extraction, chunking, text-embedding-3-small, ChromaDB, "
                "gpt-4o-mini explanations grounded only in the chunks "
@@ -403,6 +430,11 @@ with tab_home:
                                   "Asteron's policies…")
                 client, result = run_retrieval(text)
                 slot.empty()
+                _tokens = count_tokens(text)
+                st.session_state.search_cost = (
+                    {"tokens": _tokens,
+                     "cost": _tokens / 1_000_000 * price}
+                    if _tokens is not None else None)
                 st.session_state.result = result
                 st.session_state.explanation = ""
                 if result["grounded"]:
@@ -417,6 +449,13 @@ with tab_home:
 
     result = st.session_state.result
     if result is not None:
+        if st.session_state.search_cost:
+            _sc = st.session_state.search_cost
+            st.caption(
+                f"This search embedded your complaint ({_sc['tokens']} "
+                f"tokens, about ${_sc['cost']:.6f} at ${price:.2f} per "
+                f"1M tokens) with {config.EMBEDDING_MODEL}. The "
+                f"explanation was written by {config.CHAT_MODEL}.")
         if result["grounded"]:
             used = result["used"]
             top_pct = round(used[0]["similarity"] * 100, 1)
@@ -469,9 +508,11 @@ with tab_pipeline:
         cols[0].metric("Policy documents", stats.get("documents", "—"))
         cols[1].metric("Pages read", stats.get("pages", "—"))
         cols[2].metric("Chunks created", stats.get("chunks", "—"))
-        cols[3].metric("Embedding cost",
-                       f"${stats['cost_usd']:.4f}"
-                       if "cost_usd" in stats else "—")
+        cols[3].metric(
+            "Embedding cost",
+            f"${stats['cost_usd']:.4f}" if "cost_usd" in stats
+            else f"${stats['tokens'] / 1_000_000 * price:.4f}"
+            if "tokens" in stats else "—")
     st.markdown("**The settings we decided** — read live from the "
                 "configuration files, so what you see here is exactly "
                 "what runs. Nothing is hidden in the code.")
@@ -514,6 +555,18 @@ with tab_pipeline:
         st.markdown("*Finding the answers*")
         st.dataframe([{"Setting": k, "Value": str(v)} for k, v in _find],
                      hide_index=True, use_container_width=True)
+    if "tokens" in stats:
+        st.markdown("**What it costs** — embedding is a one-time cost "
+                    "per document. Re-runs skip unchanged text, so "
+                    "updates pay only for what changed.")
+        _cost_cols = st.columns(3)
+        _cost_cols[0].metric("Tokens in the knowledge base",
+                             stats["tokens"])
+        _cost_cols[1].metric("Embedding price (per 1M tokens)",
+                             f"${price:.4f}")
+        _cost_cols[2].metric(
+            "Cost to build this knowledge base",
+            f"${stats['tokens'] / 1_000_000 * price:.4f}")
     st.markdown(
         "**Extraction.** Each PDF is read page by page with PyMuPDF. "
         "The page number and the section heading are captured for every "

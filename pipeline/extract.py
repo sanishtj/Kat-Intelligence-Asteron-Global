@@ -83,4 +83,14 @@ def extract_all() -> list[dict]:
 
 
 if __name__ == "__main__":
-    extract_all()
+    try:
+        extract_all()
+    except FileNotFoundError as exc:
+        print(f"ERROR: a file is missing: {exc.filename or exc}. "
+              "Check that the policies folder holds the PDFs and "
+              "manifest.json.")
+        raise SystemExit(1)
+    except Exception as exc:
+        print(f"ERROR: extraction failed ({type(exc).__name__}): "
+              f"{exc}")
+        raise SystemExit(1)

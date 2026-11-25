@@ -63,7 +63,14 @@ def store_all(chroma_dir: Path | None = None) -> dict:
 
 
 if __name__ == "__main__":
-    result = store_all()
+    try:
+        result = store_all()
+    except SystemExit as exc:
+        print(f"ERROR: {exc}")
+        raise SystemExit(1)
+    except Exception as exc:
+        print(f"ERROR: storing failed ({type(exc).__name__}): {exc}")
+        raise SystemExit(1)
     print(f"stored: {result['stored']}, "
           f"missing embeddings: {result['missing_embeddings']}, "
           f"collection count: {result['collection_count']}")
