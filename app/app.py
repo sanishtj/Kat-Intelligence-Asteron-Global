@@ -9,6 +9,7 @@ Tabs: Playground - Policies - How it was built - Retrieval Lab.
 """
 
 import base64
+import io
 import json
 import os
 import sys
@@ -20,6 +21,7 @@ import streamlit as st
 APP_DIR = Path(__file__).resolve().parent
 ENGINE_DIR = APP_DIR / "engine"
 sys.path.insert(0, str(ENGINE_DIR))
+sys.path.insert(0, str(APP_DIR))
 
 import chromadb  # noqa: E402
 import config  # noqa: E402  (engine/config.py)
@@ -39,16 +41,22 @@ def count_tokens(text: str) -> int | None:
     """Token count for cost display; None when tiktoken is absent."""
     return len(_enc.encode(text)) if _enc is not None else None
 
-def _icon_path() -> str:
+def _page_icon():
     for candidate in (APP_DIR / "assets" / "guardkat-logo.png",
                       APP_DIR.parent / "assets" / "guardkat-logo.png"):
         if candidate.exists():
             return str(candidate)
-    return "🛡️"
+    try:
+        from logo_data import GUARDKAT_LOGO_PNG_B64
+        from PIL import Image
+        return Image.open(io.BytesIO(
+            base64.b64decode(GUARDKAT_LOGO_PNG_B64)))
+    except Exception:
+        return "🛡️"
 
 
 st.set_page_config(page_title="Kat Intelligence · by GuardKat",
-                   page_icon=_icon_path(), layout="wide")
+                   page_icon=_page_icon(), layout="wide")
 
 
 # ---------------------------------------------------------------- keys
@@ -94,6 +102,28 @@ def img_data_uri(path: Path) -> str:
     mime = "image/png" if path.suffix == ".png" else "image/svg+xml"
     encoded = base64.b64encode(path.read_bytes()).decode()
     return f"data:{mime};base64,{encoded}"
+
+
+def guardkat_logo_bytes() -> bytes | None:
+    """The GuardKat logo: the real PNG file when it is present,
+    otherwise the copy embedded in logo_data.py. The PNG is a binary
+    picture and the GitHub route for this repo carries text only, so
+    the picture rides inside the code as base64 text."""
+    path = asset_path("guardkat-logo.png")
+    if path:
+        return path.read_bytes()
+    try:
+        from logo_data import GUARDKAT_LOGO_PNG_B64
+        return base64.b64decode(GUARDKAT_LOGO_PNG_B64)
+    except Exception:
+        return None
+
+
+def guardkat_logo_uri() -> str | None:
+    raw = guardkat_logo_bytes()
+    if raw is None:
+        return None
+    return "data:image/png;base64," + base64.b64encode(raw).decode()
 
 
 def load_manifest() -> list[dict]:
@@ -174,11 +204,11 @@ api_key = get_api_key()
 BRAND_CSS = """
 <style>
 .gk-brand {text-align: center; padding: 0.4rem 0 0.2rem;}
-.gk-logos {display: flex; justify-content: center; align-items: flex-end;
+.gk-logos {display: flex; justify-content: center; align-items: center;
   gap: 20px;}
 .gk-logo-name {font-size: 11px; letter-spacing: 2px; color: #607d8b;
   font-weight: 600; margin-top: 4px;}
-.gk-x {font-size: 22px; color: #90a4ae; padding-bottom: 30px;}
+.gk-x {font-size: 22px; color: #90a4ae;}
 .gk-title {font-size: 2.4rem; margin: 0.6rem 0 0.1rem; color: #263238;}
 .gk-sub {color: #546e7a; font-size: 0.98rem; margin: 0 auto;
   max-width: 660px;}
@@ -200,16 +230,18 @@ BRAND_CSS = """
 def render_brand_header():
     st.markdown(BRAND_CSS, unsafe_allow_html=True)
     blocks = []
-    gk = asset_path("guardkat-logo.png")
-    if gk:
+    gk_uri = guardkat_logo_uri()
+    if gk_uri:
         blocks.append(
-            f'<div><img src="{img_data_uri(gk)}" style="height:74px">'
+            f'<div><img src="{gk_uri}" style="height:74px">'
             '<div class="gk-logo-name">GUARDKAT</div></div>')
     ast = asset_path("asteron-logo.svg")
     if ast:
+        # No written caption here: the Asteron logo already carries
+        # the words ASTERON GLOBAL inside the image itself.
         blocks.append(
             f'<div><img src="{img_data_uri(ast)}" style="height:74px">'
-            '<div class="gk-logo-name">ASTERON GLOBAL</div></div>')
+            '</div>')
     logos = '<div class="gk-x">×</div>'.join(blocks)
     st.markdown(
         f'<div class="gk-brand"><div class="gk-logos">{logos}</div>'
@@ -225,10 +257,10 @@ render_brand_header()
 
 # ---------------------------------------------------------------- sidebar
 with st.sidebar:
-    _gk = asset_path("guardkat-logo.png")
-    if _gk:
+    _gk_bytes = guardkat_logo_bytes()
+    if _gk_bytes:
         _brand_cols = st.columns([1, 3])
-        _brand_cols[0].image(str(_gk), width=44)
+        _brand_cols[0].image(_gk_bytes, width=44)
         _brand_cols[1].markdown("**GuardKat**\n\nKat Intelligence")
     st.header("Retrieval controls")
     st.write("Two independent filters. The threshold decides which "
@@ -278,8 +310,8 @@ with st.sidebar:
 def show_loader(slot, text: str):
     """The GuardKat loader: the meerkat inside a spinning ring, the
     same pattern as the GuardKat website's loading screen."""
-    gk = asset_path("guardkat-logo.png")
-    img = f'<img src="{img_data_uri(gk)}">' if gk else ""
+    gk_uri = guardkat_logo_uri()
+    img = f'<img src="{gk_uri}">' if gk_uri else ""
     slot.markdown(
         f'<div class="gk-loader"><div class="gk-ring">{img}</div>'
         f'<div class="gk-loader-text">{text}</div></div>',
