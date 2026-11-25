@@ -34,6 +34,21 @@ NO_MATCH_MESSAGE = (
     "Speak-Up and Whistleblowing Policy explains how to raise it."
 )
 
+# The reply contract (see the system prompt): the model ends its
+# reply with a USED line naming the passages its answer actually
+# rests on, or "USED: none" when the passages that passed the
+# filters do not answer the message (vector search always returns
+# the closest chunks, however irrelevant). The app parses that
+# line, never shows it, and decides from it: no used passages
+# means the not-covered state below, with the checked passages
+# listed collapsed and without match percentages, so a
+# checked-but-irrelevant passage is never dressed up as a source;
+# some used passages means only those are shown as sources.
+NOT_COVERED_MESSAGE = (
+    "The closest passages were checked, and none of them cover "
+    "this, so no answer was given."
+)
+
 SYSTEM_PROMPT = (
     "You are Kat Intelligence, an assistant that answers from a "
     "company's own policy documents. You are given a message from an "
@@ -51,9 +66,15 @@ SYSTEM_PROMPT = (
     "refer to a passage as 'Source 1', 'Source 2' or by any "
     "numbered label: those labels are not part of your answer. "
     "Do not invent rules, page numbers or policies that are not in "
-    "the passages. If the passages do not really answer the message, "
-    "say so plainly. Keep it short: a few sentences per policy at "
-    "most."
+    "the passages. Each passage is labelled with a code like "
+    "[P1]: those codes are plumbing for the app, not citations, "
+    "so never mention them in your answer. Finish your reply "
+    "with one last line in exactly this form: USED: P1, P3 — "
+    "the codes of the passages your answer actually rests on, "
+    "and no others. If none of the passages really answer the "
+    "message, make that line your whole reply: USED: none, "
+    "with nothing before or after it. Keep it short: a few "
+    "sentences per policy at most."
 )
 
 

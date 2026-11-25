@@ -131,13 +131,97 @@ def test_build_messages_carries_complaint_and_named_policies():
              "text": "Never accept a paid holiday."}]
     messages = explain.build_messages("A vendor offered me a trip.", used)
     assert "vendor offered me a trip" in messages[1]["content"]
-    # Passages are labelled with the policy's name, section and
-    # page, never a numbered Source label: answers must cite
-    # policies by name (Sanish, 25 Nov 2026).
-    assert "[Anti-Bribery and Corruption Policy" in messages[1]["content"]
+    # Passages are labelled with a plumbing code plus the
+    # policy's name, section and page, never a numbered Source
+    # label: answers cite policies by name (Sanish, 25 Nov 2026),
+    # and the codes exist only so the model's USED line can name
+    # the passages it rested on.
+    assert "[P1] Anti-Bribery and Corruption Policy" in messages[1]["content"]
     assert "page 1" in messages[1]["content"]
     assert "[Source" not in messages[0]["content"]
     assert "[Source" not in messages[1]["content"]
     # The system prompt itself carries the naming rule.
     assert "refer to it by its name" in messages[0]["content"]
     assert "numbered label" in messages[0]["content"]
+
+
+def test_parse_used_marker_reads_the_last_line():
+    answer, indices = explain.parse_used_marker(
+        "Decline it and report it.\nUSED: P1, P3")
+    assert answer == "Decline it and report it."
+    assert indices == [0, 2]
+    answer, indices = explain.parse_used_marker("USED: none")
+    assert answer == "" and indices == []
+    answer, indices = explain.parse_used_marker("Just an answer.")
+    assert answer == "Just an answer." and indices is None
+    answer, indices = explain.parse_used_marker(
+        "Answer.\nUSED: whenever you like")
+    assert indices is None
+
+
+class _ReplyClient:
+    def __init__(self, content):
+        self._content = content
+
+    @property
+    def chat(self):
+        content = self._content
+
+        class _Completions:
+            @staticmethod
+            def create(**_kw):
+                class _Msg:
+                    pass
+
+                class _Choice:
+                    pass
+
+                class _Resp:
+                    pass
+
+                msg = _Msg()
+                msg.content = content
+                choice = _Choice()
+                choice.message = msg
+                resp = _Resp()
+                resp.choices = [choice]
+                return resp
+
+        return type("C", (), {"completions": _Completions})()
+
+
+def _two_passages():
+    return [
+        {"title": "Anti-Bribery and Corruption Policy",
+         "section": "4. Gifts", "page_start": 2,
+         "text": "Decline paid holidays from vendors."},
+        {"title": "Anti-Bribery and Corruption Policy",
+         "section": "11. Worked examples", "page_start": 4,
+         "text": "A paid holiday during a bid is a bribe."},
+    ]
+
+
+def test_explain_returns_only_the_used_subset():
+    used = _two_passages()
+    answer, subset = explain.explain(
+        _ReplyClient("Decline it.\nUSED: P2"), "A vendor trip?", used)
+    assert answer == "Decline it."
+    assert subset == [used[1]]
+
+
+def test_explain_maps_used_none_to_the_note():
+    used = _two_passages()
+    answer, subset = explain.explain(
+        _ReplyClient("USED: none"), "What is the notice period?",
+        used)
+    assert answer == config.NOT_COVERED_MESSAGE
+    assert subset == []
+
+
+def test_explain_without_a_marker_uses_everything():
+    used = _two_passages()
+    answer, subset = explain.explain(
+        _ReplyClient("Decline it."), "A vendor trip?", used)
+    assert answer == "Decline it."
+    assert subset == used
+    assert "USED:" in config.SYSTEM_PROMPT

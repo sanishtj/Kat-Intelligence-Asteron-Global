@@ -246,6 +246,7 @@ for key, default in (("complaint", ""), ("result", None),
                      ("explanation", ""), ("previews", {}),
                      ("search_cost", None), ("policy_preview", None),
                      ("chat_messages", []), ("chat_pending", None),
+                     ("chat_view", None),
                      ("lab_result", None), ("lab_error", None)):
     if key not in st.session_state:
         st.session_state[key] = default
@@ -313,7 +314,7 @@ BRAND_CSS = """
    selectors matched nothing, which is why the previous styling
    round produced no visible change. */
 [data-testid="stTabs"] [data-testid="stTab"]
-  {font-size: 1.08rem !important; font-weight: 600;
+  {font-size: 1.2rem !important; font-weight: 700;
   color: #546e7a !important; padding: 10px 20px;
   background: rgba(38, 50, 56, 0.06) !important;
   border: 1px solid rgba(38, 50, 56, 0.18); border-bottom: none;
@@ -487,8 +488,9 @@ with tab_home:
                     collection, collection.count())
                 if _kb_tok_cost:
                     st.caption(
-                        f"Total cost: about "
-                        f"${_kb_tok_cost / 1_000_000 * price:.4f}")
+                        f"Total cost: {_kb_tok_cost:,} tokens × "
+                        f"${price:g} per 1M tokens = about "
+                        f"${_kb_tok_cost * price / 1_000_000:.4f}")
             chat_in_price = st.number_input(
                 "Chat model input price (USD per 1M tokens)",
                 min_value=0.0, value=0.15, step=0.01, format="%.4f",
@@ -601,14 +603,29 @@ def run_retrieval(complaint: str):
 
 
 def _answer_pieces(client, complaint: str, used: list[dict],
-                   usage: dict, history: list[dict] | None = None):
+                   usage: dict, history: list[dict] | None = None,
+                   state: dict | None = None):
     """Yield the explanation piece by piece, filling `usage` from
     the stream's final chunk as it passes (include_usage), so
-    every answer can carry its real token cost."""
+    every answer can carry its real token cost. The tail of the
+    stream is held back and watched for the reply's USED line:
+    once a line starting "USED:" begins, nothing more is yielded
+    (the line is the model's signal to the app, never part of
+    the answer), and the whole raw reply is kept in state["raw"]
+    for the caller to parse."""
+    if state is None:
+        state = {}
+    state["raw"] = ""
     stream = client.chat.completions.create(
         model=config.CHAT_MODEL, temperature=0.2, stream=True,
         stream_options={"include_usage": True},
         messages=explain.build_messages(complaint, used, history))
+    import re as _re
+
+    holdback = 24
+    pending = ""
+    marker_at = None
+    yielded_any = False
     for chunk in stream:
         chunk_usage = getattr(chunk, "usage", None)
         if chunk_usage is not None:
@@ -616,27 +633,81 @@ def _answer_pieces(client, complaint: str, used: list[dict],
                 "prompt_tokens": chunk_usage.prompt_tokens,
                 "completion_tokens": chunk_usage.completion_tokens,
                 "total_tokens": chunk_usage.total_tokens})
-        if chunk.choices:
-            yield chunk.choices[0].delta.content or ""
+        if not chunk.choices:
+            continue
+        piece = chunk.choices[0].delta.content or ""
+        state["raw"] += piece
+        if marker_at is not None:
+            continue
+        pending += piece
+        start = pending.find("\nUSED:")
+        if start >= 0:
+            start += 1
+        elif not yielded_any and pending.startswith("USED:"):
+            start = 0
+        if start >= 0:
+            tail = pending[start + 5:]
+            if _re.fullmatch(r"[P\d,\sNONE.]*", tail, _re.I):
+                marker_at = start
+                if start:
+                    yield pending[:start]
+                pending = ""
+                continue
+        if len(pending) > holdback:
+            yield pending[:-holdback]
+            yielded_any = True
+            pending = pending[-holdback:]
+    if marker_at is None and pending:
+        yield pending
+
+
+def _finish_answer(state: dict, used: list[dict]):
+    """Decide the final (text, sources, not_covered) from the
+    raw reply's USED line. No valid line: every retrieved
+    passage counts as a source (the fallback). USED: none: the
+    not-covered note and no sources. Otherwise the sources are
+    only the passages the model named. Stray [P1] plumbing
+    labels are stripped from the answer text."""
+    import re as _re
+
+    answer, indices = explain.parse_used_marker(state.get("raw", ""))
+    answer = _re.sub(r"\[P\d+\]\s?", "", answer)
+    if indices is None:
+        return answer, used, False
+    if not indices:
+        return config.NOT_COVERED_MESSAGE, [], True
+    subset = [used[i] for i in indices if 0 <= i < len(used)]
+    if not subset:
+        return answer, used, False
+    return answer, subset, False
 
 
 def stream_explanation(client, complaint: str, used: list[dict],
                        history: list[dict] | None = None):
     """Stream the explanation to the page and return (text,
-    usage)."""
+    usage, sources, not_covered): the canonical answer text
+    (USED line removed), the passages the model says it used,
+    and whether it used none."""
     usage: dict = {}
-    return (st.write_stream(
-        _answer_pieces(client, complaint, used, usage, history)),
-        usage)
+    state: dict = {}
+    st.write_stream(
+        _answer_pieces(client, complaint, used, usage, history,
+                       state))
+    text, sources, not_covered = _finish_answer(state, used)
+    return text, usage, sources, not_covered
 
 
 def collect_explanation(client, complaint: str, used: list[dict]):
     """The same streamed answer, gathered instead of shown, for
     places that run inside a callback where nothing can be drawn
-    (the Prompt tab). Returns (text, usage)."""
+    (the Prompt tab). Returns (text, usage, sources,
+    not_covered)."""
     usage: dict = {}
-    text = "".join(_answer_pieces(client, complaint, used, usage))
-    return text, usage
+    state: dict = {}
+    "".join(_answer_pieces(client, complaint, used, usage, None,
+                           state))
+    text, sources, not_covered = _finish_answer(state, used)
+    return text, usage, sources, not_covered
 
 
 @st.dialog("The policy page, with the passage highlighted",
@@ -665,24 +736,78 @@ def _policy_dialog(entry: dict, pdf_bytes: bytes):
         st.rerun()
 
 
-def show_matches(used: list[dict], key_prefix: str = ""):
+def chunks_line(returned: int, used_count: int) -> str:
+    """The grounding display's count line: how many chunks the
+    search returned for the answer step, and how many of them
+    the answer actually used. This, not a match percentage, is
+    the quantitative signal under an answer."""
+    return (f"{returned} chunk{'s' if returned != 1 else ''} "
+            f"returned, {used_count} used")
+
+
+def _preview_button(hit: dict, key_prefix: str = ""):
+    """The button that opens the policy at the exact page, with
+    the passage highlighted, in a dialog."""
+    preview_key = f"{key_prefix}{hit['chunk_id']}"
+    if st.button(f"Preview page {hit['page_start']} with the passage "
+                 f"highlighted", key=f"preview_{preview_key}"):
+        rendered = st.session_state.previews.get(preview_key)
+        if rendered is None:
+            with st.spinner("Opening the policy at the exact page…"):
+                rendered = highlight.render_for_hit(hit)
+            st.session_state.previews[preview_key] = rendered
+        _page_dialog(hit, rendered)
+
+
+def show_matches(used: list[dict], key_prefix: str = "",
+                 show_scores: bool = True):
     for i, hit in enumerate(used, start=1):
-        pct = round(hit["similarity"] * 100, 1)
-        st.markdown(
-            f"**{pct}% match** · {hit['title']} · {hit['section']} · "
-            f"page {hit['page_start']}")
+        if show_scores:
+            pct = round(hit["similarity"] * 100, 1)
+            st.markdown(
+                f"**{pct}% match** · {hit['title']} · "
+                f"{hit['section']} · page {hit['page_start']}")
+        else:
+            st.markdown(
+                f"**{hit['title']}** · {hit['section']} · "
+                f"page {hit['page_start']}")
         with st.expander("Read the passage"):
             st.write(hit["text"])
+        _preview_button(hit, key_prefix)
+        st.divider()
+
+
+def show_references(used: list[dict], key_prefix: str = ""):
+    """Chat's compact citations, ChatGPT-style: one clickable
+    reference per place the answer rests on — the policy name,
+    with the section and page in brackets after it. Clicking a
+    reference opens the policy at that exact page with the
+    passage highlighted, exactly what the old preview buttons
+    did. No passage text here: the full passages live in the
+    Fine-tune tab only."""
+    for hit in used:
         preview_key = f"{key_prefix}{hit['chunk_id']}"
-        if st.button(f"Preview page {hit['page_start']} with the passage "
-                     f"highlighted", key=f"preview_{preview_key}"):
+        label = (f"{hit['title']} [{hit['section']} · "
+                 f"page {hit['page_start']}]")
+        if st.button(label, key=f"ref_{preview_key}"):
             rendered = st.session_state.previews.get(preview_key)
             if rendered is None:
-                with st.spinner("Opening the policy at the exact page…"):
+                with st.spinner("Opening the policy at the exact "
+                                "page…"):
                     rendered = highlight.render_for_hit(hit)
                 st.session_state.previews[preview_key] = rendered
             _page_dialog(hit, rendered)
-        st.divider()
+
+
+def show_checked_passages(used: list[dict]):
+    """The passages the model checked and found not covering the
+    message: collapsed under their own label, named by policy,
+    section and page, with no match percentages and no preview.
+    They were checked, not matched, and the page says so."""
+    with st.expander("Passages checked"):
+        for hit in used:
+            st.write(f"{hit['title']} · {hit['section']} · "
+                     f"page {hit['page_start']}")
 
 
 # ---------------------------------------------------------------- home
@@ -728,7 +853,9 @@ with tab_home:
                 st.session_state.explanation = ""
                 usage = {}
                 if result["grounded"]:
-                    st.session_state.explanation, usage = \
+                    (st.session_state.explanation, usage,
+                     st.session_state.sources,
+                     st.session_state.not_covered) = \
                         stream_explanation(client, text, result["used"])
                 _chat_tokens = usage.get(
                     "total_tokens",
@@ -742,7 +869,9 @@ with tab_home:
                     "cost": exchange_cost_usd(
                         query_tokens, usage, price, chat_in_price,
                         chat_out_price),
-                    "answered": bool(usage)}
+                    "answered": (bool(usage) and not
+                                 st.session_state.get(
+                                     "not_covered"))}
             except Exception as exc:
                 slot.empty()
                 st.error(f"Something went wrong: {exc}")
@@ -750,13 +879,18 @@ with tab_home:
 
     result = st.session_state.result
     if result is not None:
+        # The token usage caption belongs directly under the
+        # answer text, before any sources or passages section,
+        # so its text is composed here and rendered at that
+        # point in each branch below.
+        _cost_text = None
         if st.session_state.search_cost:
             _sc = st.session_state.search_cost
             _split = (f" ({_sc['prompt']:,} in · "
                       f"{_sc['completion']:,} out · "
                       f"{_sc['query']:,} search)"
                       if _sc["answered"] else "")
-            st.caption(
+            _cost_text = (
                 f"This search used {_sc['tokens']:,} tokens{_split} "
                 f"and cost about ${_sc['cost']:.6f}: the complaint "
                 f"embedded with {config.EMBEDDING_MODEL}"
@@ -766,19 +900,30 @@ with tab_home:
                    ", and no explanation was generated."))
         if result["grounded"]:
             used = result["used"]
-            top_pct = round(used[0]["similarity"] * 100, 1)
-            _s = result["settings"]
-            _k_text = ("dynamic K" if _s["k_mode"] == "dynamic"
-                       else f"fixed K = {_s['fixed_k']}")
-            st.success(f"Top match {top_pct}% · {len(used)} policy "
-                       f"passage(s) used · threshold "
-                       f"{int(_s['threshold'] * 100)}% · {_k_text}")
-            if st.session_state.explanation:
-                st.markdown(st.session_state.explanation)
-            st.subheader("Policies that match")
-            show_matches(used)
+            if st.session_state.get("not_covered"):
+                st.warning(config.NOT_COVERED_MESSAGE)
+                if _cost_text:
+                    st.caption(_cost_text)
+                st.caption(chunks_line(len(used), 0))
+                show_checked_passages(used)
+            else:
+                sources = st.session_state.get("sources") or used
+                _s = result["settings"]
+                _k_text = ("dynamic K" if _s["k_mode"] == "dynamic"
+                           else f"fixed K = {_s['fixed_k']}")
+                st.success(f"{chunks_line(len(used), len(sources))} "
+                           f"· threshold "
+                           f"{int(_s['threshold'] * 100)}% · {_k_text}")
+                if st.session_state.explanation:
+                    st.markdown(st.session_state.explanation)
+                if _cost_text:
+                    st.caption(_cost_text)
+                st.subheader("Policies that match")
+                show_matches(sources, show_scores=False)
         else:
             st.warning(config.NO_MATCH_MESSAGE)
+            if _cost_text:
+                st.caption(_cost_text)
             if result["candidates"]:
                 with st.expander("Why nothing matched — the closest "
                                  "passages were below the threshold"):
@@ -790,6 +935,18 @@ with tab_home:
 
 # ---------------------------------------------------------------- chat
 with tab_chat:
+    if st.session_state.get("goto_finetune"):
+        # One-shot tab switch for the per-answer Fine-tune
+        # button: the click set the state and reran, Fine-tune
+        # has already picked the question up on this pass, and
+        # this frame clicks the Fine-tune tab exactly as a hand
+        # click would. The flag is cleared first so it fires
+        # once only.
+        st.session_state.goto_finetune = False
+        components.html(
+            "<script>window.parent.document.querySelectorAll("
+            "'[data-testid=stTab]')[1].click()</script>",
+            height=0)
     chat_col, rail_col = st.columns([3, 1])
     with rail_col:
         # The one route from Chat to the controls: a small
@@ -871,26 +1028,50 @@ with tab_chat:
                 if st.button(sample["label"], key=f"chat_chip_{i}",
                              use_container_width=True):
                     st.session_state.chat_pending = sample["complaint"]
-        # The session's history lives here in the rail: the
-        # questions asked so far, newest last, with the clear
-        # control under them. The main column shows only the
-        # current exchange; the full record stays in session
-        # state and feeds the follow-up context either way.
-        _questions = [m["content"]
-                      for m in st.session_state.chat_messages
+        # The session's history lives here in the rail: one
+        # button per question asked so far, in order, with the
+        # clear control under them. Clicking a button loads that
+        # exchange into the main column from the stored messages.
+        # The full record stays in session state and feeds the
+        # follow-up context either way.
+        _questions = [(i, m["content"])
+                      for i, m in enumerate(st.session_state.chat_messages)
                       if m["role"] == "user"]
         if _questions:
             with st.expander("History", expanded=False):
-                for _q in _questions:
+                st.caption("Open an earlier exchange:")
+                for _i, _q in _questions:
                     _label = (_q if len(_q) <= 90
                               else _q[:90].rstrip() + "\u2026")
-                    st.markdown(f"- {_label}")
+                    if st.button(_label, key=f"hist_{_i}",
+                                 use_container_width=True):
+                        st.session_state.chat_view = _i
+                        st.rerun()
                 if st.button("Clear conversation", key="clear_chat"):
                     st.session_state.chat_messages = []
                     st.session_state.chat_pending = None
+                    st.session_state.chat_view = None
                     st.rerun()
     with chat_col:
         st.markdown("### \U0001f4ac Ask Kat Intelligence")
+        # A quiet live note of the fine-tuning values this chat
+        # is running with, read from the same session state the
+        # Fine-tune controls write, so a change made there shows
+        # here on the next run. Display only: Chat's one control
+        # remains the Fine-tune button in the rail.
+        _note_threshold = st.session_state.get(
+            "threshold_pct", int(config.THRESHOLD_DEFAULT * 100))
+        _note_label = st.session_state.get(
+            "k_mode_label", "Dynamic — stop at the cliff")
+        if str(_note_label).startswith("Dynamic"):
+            _note_k = (f"Dynamic K, cap "
+                       f"{st.session_state.get('max_k', config.MAX_K_DEFAULT)}")
+        else:
+            _note_k = (f"Fixed K, "
+                       f"{st.session_state.get('fixed_k', config.TOP_K_DEFAULT)} "
+                       f"passages")
+        st.caption(f"Threshold {_note_threshold}% · {_note_k} · "
+                   f"set in Fine-tune")
         if collection is None:
             st.warning("The knowledge base is not built yet, so the "
                        "chat cannot look anything up. Build it with "
@@ -956,44 +1137,83 @@ with tab_chat:
                     used = result["used"]
                     tokens = {"query": query_tokens or 0,
                               "prompt": 0, "completion": 0}
+                    not_covered = False
+                    sources: list[dict] = []
                     if used:
-                        answer, usage = stream_explanation(
-                            client, new_text, used, history)
+                        answer, usage, sources, not_covered = \
+                            stream_explanation(
+                                client, new_text, used, history)
                         tokens["prompt"] = usage.get(
                             "prompt_tokens", 0)
                         tokens["completion"] = usage.get(
                             "completion_tokens", 0)
-                        st.markdown("**Sources**")
-                        show_matches(
-                            used,
-                            key_prefix=f"chat{assistant_idx}_")
+                        if not_covered:
+                            st.markdown(answer)
                     else:
                         answer = config.NO_MATCH_MESSAGE
                         st.markdown(answer)
                     chat_cost_caption(tokens, price, chat_in_price,
                                       chat_out_price)
+                    if used:
+                        if not_covered:
+                            show_checked_passages(used)
+                        elif sources:
+                            st.markdown("**Sources**")
+                            show_references(
+                                sources,
+                                key_prefix=f"chat{assistant_idx}_")
+                        st.caption(chunks_line(len(used),
+                                               len(sources)))
             st.session_state.chat_messages.append(
-                {"role": "assistant", "content": answer, "used": used,
-                 "tokens": tokens})
+                {"role": "assistant", "content": answer,
+                 "used": sources, "checked": used,
+                 "tokens": tokens, "not_covered": not_covered})
+            st.session_state.chat_view = None
             st.rerun()
-        # The main column keeps the current exchange only: the
-        # latest question and its answer, with sources and the
-        # cost caption. Earlier exchanges live in the rail's
-        # History list and in the follow-up context.
+        # The main column shows one exchange: the latest, or the
+        # one picked from the rail's History (chat_view holds the
+        # picked user message's index; None means the latest).
+        # The answer, sources and cost caption all come from the
+        # stored message, so reopening an exchange costs nothing.
         messages = st.session_state.chat_messages
         if len(messages) >= 2:
-            user_msg, asst_msg = messages[-2], messages[-1]
+            view = st.session_state.chat_view
+            if (view is None or view >= len(messages) - 1
+                    or messages[view]["role"] != "user"):
+                view = len(messages) - 2
+            user_msg, asst_msg = messages[view], messages[view + 1]
             with st.chat_message("user"):
                 st.markdown(user_msg["content"])
             with st.chat_message("assistant"):
                 st.markdown(asst_msg["content"])
-                if asst_msg.get("used"):
-                    st.markdown("**Sources**")
-                    show_matches(
-                        asst_msg["used"],
-                        key_prefix=f"chat{len(messages) - 1}_")
                 chat_cost_caption(asst_msg.get("tokens"), price,
                                   chat_in_price, chat_out_price)
+                _checked = (asst_msg.get("checked")
+                            or asst_msg.get("used") or [])
+                _sources = asst_msg.get("used") or []
+                if asst_msg.get("not_covered"):
+                    if _checked:
+                        show_checked_passages(_checked)
+                elif _sources:
+                    st.markdown("**Sources**")
+                    show_references(_sources,
+                                     key_prefix=f"chat{view + 1}_")
+                if asst_msg.get("tokens") is not None:
+                    st.caption(chunks_line(len(_checked),
+                                           len(_sources)))
+            # Per-answer route into the workbench: carry this
+            # exchange's question into Fine-tune, where its
+            # passages and chunks are already in view, instead
+            # of starting empty. The tab switch itself is the
+            # one-shot click rendered at the top of this tab on
+            # the next run (Streamlit has no switch-tab call).
+            if len(messages) >= 2:
+                if st.button("⚙️ See the passages in Fine-tune",
+                             key=f"finetune_{view}"):
+                    st.session_state.complaint = user_msg["content"]
+                    st.session_state.run_now = True
+                    st.session_state.goto_finetune = True
+                    st.rerun()
 
 # ---------------------------------------------------------------- policies
 with tab_policies:
@@ -1357,12 +1577,15 @@ def _run_lab() -> None:
         client, result, query_tokens = run_retrieval(text)
         answer = None
         usage: dict = {}
+        not_covered = False
+        sources: list[dict] = []
         if result["used"]:
-            answer, usage = collect_explanation(
-                client, text, result["used"])
+            answer, usage, sources, not_covered = \
+                collect_explanation(client, text, result["used"])
         st.session_state["lab_result"] = {
             "text": text, "candidates": result["candidates"],
-            "used": result["used"], "answer": answer,
+            "retrieved": result["used"], "used": sources,
+            "answer": answer, "not_covered": not_covered,
             "tokens": {"query": query_tokens or 0,
                        "prompt": usage.get("prompt_tokens", 0),
                        "completion": usage.get("completion_tokens",
@@ -1425,15 +1648,25 @@ with tab_lab:
                     "searches the ChromaDB knowledge base and fills "
                     "them in, fresh every time the prompt is built:")
         if _run:
-            _n = len(_run["used"])
-            st.markdown(
-                f"**{_n} policy passage{'s' if _n != 1 else ''} "
-                "used for this answer** — however many passed "
-                "the threshold and K filters on this run, counted "
-                "from the retrieval itself, never a fixed number:")
-        if _run and _run["used"]:
+            _r = len(_run["retrieved"])
+            _u = len(_run["used"])
+            if _run.get("not_covered"):
+                st.markdown(
+                    f"**{_r} policy passage{'s' if _r != 1 else ''} "
+                    "checked for this message** — they filled the "
+                    "prompt below, and the model reported using "
+                    "none of them, so no answer was given:")
+            else:
+                st.markdown(
+                    f"**{_u} of the {_r} retrieved passage"
+                    f"{'s' if _r != 1 else ''} used for this "
+                    "answer** — the passages below filled the "
+                    "prompt; the model names the ones its answer "
+                    "rests on at the end of its reply, and only "
+                    "those count as used:")
+        if _run and _run["retrieved"]:
             prompt_block("Policy passages retrieved:\n"
-                         + explain.build_context(_run["used"]))
+                         + explain.build_context(_run["retrieved"]))
         elif _run:
             prompt_block("Policy passages retrieved:\n"
                          "<nothing passed the threshold and K "
@@ -1463,7 +1696,7 @@ with tab_lab:
                     "best first. ✓ = the passages that filled the "
                     "prompt above, after the threshold and K "
                     "filters.")
-        _used_ids = {h["chunk_id"] for h in _run["used"]}
+        _used_ids = {h["chunk_id"] for h in _run["retrieved"]}
         _rows = [{
             "Used": "✓" if h["chunk_id"] in _used_ids else "—",
             "Match %": round(h["similarity"] * 100, 1),
@@ -1471,7 +1704,7 @@ with tab_lab:
             "Page": h["page_start"],
         } for h in _run["candidates"]]
         st.dataframe(_rows, use_container_width=True)
-        if _run["used"]:
+        if _run["retrieved"]:
             st.markdown("**The answer** — written by the model "
                         "from the filled prompt above, and from "
                         "nothing else:")
