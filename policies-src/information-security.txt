@@ -1,0 +1,44 @@
+TITLE: Information Security and Acceptable Use Policy
+SHORT: information-security-and-acceptable-use
+VERSION: Version 6.2, effective 20 February 2026
+OWNER: Information Security Team
+INTRO: Company systems and information are business assets. This policy explains how to use them safely: what is permitted, what is prohibited, and what to do when something looks wrong.
+
+## 1. Purpose
+This policy protects Asteron Global's systems and information from unauthorised access, loss and misuse. It applies to every device and account used for company work, whether company-owned or personal, and works together with the Data Protection and Privacy Policy.
+
+## 2. Accounts and passwords
+Your accounts are personal to you. Never share your password, access card or multi-factor authentication code with anyone, including IT staff, who will never ask for them. Use a unique password for company systems, keep multi-factor authentication switched on, and lock your screen whenever you leave a device unattended. If you believe your account has been compromised, contact the IT Service Desk immediately.
+
+## 3. Acceptable use of systems
+Company systems are provided for business purposes. Limited personal use is permitted where it does not interfere with your work, breach this policy or create cost or risk for the company. You must not use company systems to run a private business, to access unlawful material, or to send harassing or discriminatory content.
+
+## 4. Company data stays on company systems
+Company information, including documents, spreadsheets and customer records, must be created, stored and shared only on approved company systems. You must not:
+- Send company information to a personal email account, or forward it there automatically.
+- Upload company information to personal cloud storage, personal file-sharing accounts or public AI tools.
+- Store company information on personal USB drives or other removable media.
+If you need to work on information away from company systems, request an approved method through the IT Service Desk. A manager's instruction does not override this section: if you are asked to move company data to a personal account, decline and contact the Information Security Team.
+
+## 5. Email and phishing
+Treat unexpected messages with suspicion, especially those creating urgency, requesting payment changes or asking for credentials. Verify unusual requests through a separate channel, such as a phone call to a known number. Report suspicious messages with the report-phishing button or to the IT Service Desk, and do not click links or open attachments in a message you believe is malicious.
+
+## 6. Software and devices
+Install software only from the approved catalogue or with IT approval. Never disable security software, and keep devices updated when prompted. Personal devices may be used for company work only if they are enrolled in the company's device management programme and meet its minimum standards.
+
+## 7. Working in public and while travelling
+Use the company VPN on untrusted networks, keep your screen shielded from bystanders, and never leave devices unattended in vehicles or public places. Lost or stolen devices must be reported to the IT Service Desk immediately, at any hour, so access can be revoked.
+
+## 8. Monitoring
+To protect the company, Asteron Global monitors the security of its systems, including login records and data-transfer alerts. Monitoring is proportionate, focused on security events, and carried out under the oversight of the Data Protection Office.
+
+## 9. Reporting incidents
+Report anything suspicious, a lost device, a possible malware infection, a message that may be phishing, or data sent somewhere it should not have gone, to the IT Service Desk as soon as you notice it. Fast reporting limits damage and is always supported. Attempting to hide an incident is a serious violation of this policy.
+
+## 10. Consequences
+Breaches of this policy may lead to access being suspended and disciplinary action up to and including dismissal, depending on intent and impact. Deliberately moving company data to personal accounts or sharing credentials is treated as gross misconduct.
+
+## 11. Worked examples
+Example. While travelling, a director asks her assistant to forward a board presentation to her personal email because the VPN is slow. Section 4 applies: a manager's instruction does not override this policy. The assistant should decline, explain the rule, and contact the IT Service Desk to fix the access problem instead.
+Example. An employee receives an urgent email, apparently from the Chief Financial Officer, asking him to change a supplier's bank details before a payment run. Section 5 requires verification through a separate channel, such as calling a known number, before acting. The request has the classic signs of payment fraud and should also be reported to the IT Service Desk.
+Example. To save time, an employee pastes a confidential draft contract into a public AI chatbot to summarise it. Uploading company information to a public AI tool is prohibited by section 4. The employee should stop, delete the conversation where the tool allows it, and report the incident under section 9 so the exposure can be assessed.

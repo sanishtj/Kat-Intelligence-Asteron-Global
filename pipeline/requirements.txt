@@ -1,0 +1,7 @@
+pymupdf
+reportlab
+openai
+tiktoken
+chromadb
+streamlit
+pytest

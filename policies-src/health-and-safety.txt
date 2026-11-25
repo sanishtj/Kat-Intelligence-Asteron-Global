@@ -1,0 +1,45 @@
+TITLE: Health and Safety Policy
+SHORT: health-and-safety
+VERSION: Version 3.3, effective 1 March 2026
+OWNER: Environment, Health and Safety Team
+INTRO: Asteron Global is committed to workplaces where nobody is injured or made ill by their work: our offices, plants, warehouses and customer sites. This policy sets out the duties of the company, of managers and of every employee.
+
+## 1. Purpose
+This policy prevents injury and ill health arising from Asteron Global's operations. It applies to employees, contractors and visitors at all company locations and to employees working at customer sites or travelling for work. Local safety law sets minimum standards; where this policy is stricter, this policy applies.
+
+## 2. Company duties
+Asteron Global will provide safe premises, equipment and systems of work; assess risks before work begins and whenever it changes; maintain machinery and protective equipment; and provide the training, supervision and information people need to work safely. No production target, deadline or customer request justifies bypassing a safety control.
+
+## 3. Employee duties
+Every employee must:
+- Follow the safety procedures and instructions for their role and location.
+- Use the protective equipment provided, and report defects in it immediately.
+- Keep walkways, exits and fire equipment clear and accessible.
+- Never operate machinery, vehicles or equipment they are not trained and authorised to use.
+- Stop work and escalate if a task appears unsafe, without fear of blame for doing so.
+
+## 4. Reporting hazards and incidents
+Report hazards, near misses, injuries and unsafe conditions to your manager or the Environment, Health and Safety Team the same day, using the site reporting form or the Speak-Up channel. A near miss, where nobody was hurt this time, must be reported with the same seriousness as an injury: it is the cheapest warning the company will ever get. Concealing an incident, or discouraging a colleague from reporting one, is a violation of this policy.
+
+## 5. Plant and warehouse safety
+Only authorised and trained personnel may enter marked production and warehouse zones. Forklifts and other mobile equipment have right of way over pedestrians in marked lanes, high-visibility clothing is mandatory in those zones, and safety guards on machinery must never be removed or overridden. Lockout procedures must be followed in full before any maintenance or clearing of blockages.
+
+## 6. Office and display screen work
+Office-based employees must complete the workstation assessment on joining and after any change of desk or equipment, adjust their chair and screen as guided, and report persistent pain or discomfort to People and Culture so adjustments can be made. Take short regular breaks from screen work, and report damaged cables, trailing leads or other office hazards under section 4.
+
+## 7. Fatigue and fitness for work
+Employees must arrive fit for work. Working while impaired by alcohol or drugs is prohibited and is covered by the substance rules in the Code of Conduct and Ethics. If your role involves shifts or driving, follow the rest and maximum-hours rules for your location, and tell your manager if fatigue is affecting your safety; you will be supported, not penalised.
+
+## 8. Emergencies
+Know the fire exits, alarm points and assembly point for every location you work in. On hearing an alarm, leave immediately by the nearest safe exit, do not use lifts, do not stop to collect belongings, and report to your assembly point. Fire drills are mandatory for everyone on site, including visitors and senior managers.
+
+## 9. Contractors and visitors
+Contractors must be inducted, hold the required permits to work, and follow site rules while on Asteron Global premises. Hosts are responsible for their visitors' safety briefing and evacuation. A contractor who breaches safety rules will be removed from site and may be removed from the approved supplier list.
+
+## 10. Consequences
+Breaches of safety rules endanger people, not just processes, and are treated accordingly. Disciplinary action may follow, up to and including dismissal for deliberate or reckless breaches, while good-faith reporting and stopping unsafe work are always protected.
+
+## 11. Worked examples
+Example. A warehouse operative notices pallets stacked across a marked forklift lane, forcing drivers to reverse blindly around a corner. This is a hazard that must be reported the same day under section 4, and the lane must be cleared before work continues in that aisle. Reporting it is protected; nobody will be criticised for the short delay.
+Example. Before maintenance, a technician finds a safety guard on a press is loose and a colleague suggests taping it down and carrying on. Section 5 prohibits overriding safety guards, and section 3 requires the technician to stop the work and escalate. The press stays out of service, under lockout, until it is properly repaired.
+Example. A carton falls from high racking and lands a metre from a passing employee, who is unhurt. Because nobody was injured, a supervisor suggests not troubling anyone with paperwork. Section 4 requires near misses to be reported with the same seriousness as injuries; the report is how the company learns the racking needs attention before someone is hurt.

@@ -1,0 +1,40 @@
+TITLE: Code of Conduct and Ethics
+SHORT: code-of-conduct
+VERSION: Version 3.0, effective 1 March 2026
+OWNER: Ethics and Compliance Office
+INTRO: This Code sets the standard of behaviour expected of everyone who works for or represents Asteron Global. It cannot describe every situation, but it states the principles that guide our decisions: act honestly, respect people, protect the company's assets and information, and speak up when something looks wrong.
+
+## 1. Purpose
+This Code of Conduct and Ethics explains what Asteron Global expects from its people in their daily work. It applies in every country where we operate and sits above local procedures: where a local rule is stricter than this Code, the stricter rule applies. Managers are responsible for making sure their teams understand this Code and for setting an example through their own behaviour.
+
+## 2. Who this policy applies to
+This Code applies to all employees, interns, contractors, consultants and agency workers engaged by Asteron Global, in every business unit and location. It also applies to members of the Board when they act on behalf of the company. Third parties who represent us, such as distributors and agents, are expected to follow standards consistent with this Code.
+
+## 3. Act with honesty and integrity
+We record our business truthfully. Every document, report, timesheet, invoice and system entry you create must be accurate and complete. Falsifying a record, altering figures, backdating a document or asking someone else to do so is a serious violation of this Code, even if the intention was to help the company or meet a deadline. If you are unsure whether something is accurate, stop and check before you submit it.
+
+## 4. Respect people
+We treat colleagues, customers and partners with dignity. Discrimination, harassment, bullying and intimidation have no place at Asteron Global and are covered in detail by the Workplace Harassment Prevention Policy. Decisions about hiring, promotion and reward must be based on merit and business need, never on personal relationships or favouritism.
+
+## 5. Protect company assets and information
+Company equipment, systems, funds and information are provided for business use. You must safeguard them against loss, misuse and unauthorised access, and you must never use company assets for personal gain or for an outside business. Confidential information must only be shared with people who need it for their work, in line with the Data Protection and Privacy Policy and the Information Security and Acceptable Use Policy.
+
+## 6. Avoid conflicts of interest
+Your duty to Asteron Global must come before personal interests. Situations where a personal relationship or financial interest could influence, or appear to influence, a business decision must be declared under the Conflicts of Interest Policy. Never put yourself in a position where you supervise, approve work for, or make decisions affecting a close family member or a business in which you hold an interest.
+
+## 7. Gifts, hospitality and bribery
+We win business on the quality of our work, never through improper payments or favours. You must not offer, promise or accept bribes, kickbacks or anything of value intended to influence a decision. Modest gifts and hospitality are governed by the Anti-Bribery and Corruption Policy, which sets clear value limits and reporting duties. When in doubt, decline politely and report the offer.
+
+## 8. Speak up
+If you see or suspect a violation of this Code, a policy or the law, you are expected to raise it. You can speak to your manager, to the Ethics and Compliance Office, or use the Speak-Up channel described in the Speak-Up and Whistleblowing Policy, anonymously if you prefer. Asteron Global does not tolerate retaliation against anyone who raises a concern in good faith.
+
+## 9. Consequences of violations
+Violations of this Code are taken seriously and may result in disciplinary action, up to and including dismissal, and referral to authorities where the law has been broken. The seriousness of the response depends on the nature of the conduct, whether it was deliberate, and whether the person cooperated with any investigation.
+
+## 10. Questions and guidance
+If you are unsure how this Code applies to a situation, ask before you act. Contact the Ethics and Compliance Office or your local compliance partner. Asking a question is never treated as a problem; acting first and explaining later often is.
+
+## 11. Worked examples
+Example. A shipment leaves two days late and a supervisor asks an analyst to backdate the delivery note so the customer record shows it on time. Backdating the note would falsify a company record, which section 3 prohibits even though the intention is to protect the customer relationship. The analyst should decline, keep the true date, and raise the request with the Ethics and Compliance Office if the pressure continues.
+Example. An employee finds a colleague's payslip on a shared printer. Reading it, photographing it or telling others what it shows would breach the respect and confidentiality principles in sections 4 and 5. The right action is to hand it, unread, to People and Culture or place it in a sealed envelope for the owner.
+Example. A team lead consistently gives a close friend the most convenient shifts and first choice of overtime, while others rarely get either. Allocating work by favouritism rather than merit breaches section 4, even though no money changes hands. Team members can raise it with the lead's manager or through the Speak-Up channel.

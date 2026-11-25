@@ -1,0 +1,45 @@
+TITLE: Data Protection and Privacy Policy
+SHORT: data-protection-and-privacy
+VERSION: Version 5.0, effective 1 March 2026
+OWNER: Data Protection Office
+INTRO: Asteron Global collects and uses personal data about customers, employees and partners, and is trusted to protect it. This policy states the rules everyone must follow when handling personal data, wherever they work.
+
+## 1. Purpose
+This policy ensures that personal data is handled lawfully, fairly and securely across Asteron Global. It applies alongside local privacy laws; where a local law is stricter, the stricter rule applies. The Data Protection Office owns this policy and can advise on any situation it does not clearly cover.
+
+## 2. What personal data is
+Personal data is any information that identifies a living person, directly or indirectly: names, email addresses, phone numbers, customer records, identification numbers, location data, photographs and opinions about a person. Customer spreadsheets, mailing lists and support tickets almost always contain personal data and must be treated accordingly.
+
+## 3. Core principles
+When you handle personal data you must:
+- Collect only what you need for a clear business purpose, and use it only for that purpose.
+- Keep it accurate and up to date, and correct it when you learn it is wrong.
+- Keep it no longer than the retention schedule allows, then delete it securely.
+- Protect it in line with its sensitivity, following the Information Security and Acceptable Use Policy.
+- Never sell personal data, and never share it outside the company except as section 6 allows.
+
+## 4. Handling customer data
+Customer data may only be accessed by employees whose role requires it, through company systems. You must never copy customer data to a personal device, a personal email account, a personal cloud drive or an unauthorised spreadsheet. If your work seems to require an exception, stop and request approval from the Data Protection Office before moving any data; convenience is not a ground for an exception.
+
+## 5. Sending data by email
+Internal email between Asteron Global accounts is approved for ordinary business data. Personal data sent outside the company must be sent only to a verified business recipient, using an approved secure transfer method where the data is sensitive or bulky. Before sending, check the recipient, the attachments and the thread history: sending personal data to the wrong person is one of the most common causes of a data breach.
+
+## 6. Sharing with third parties
+Personal data may be shared with a supplier or partner only where a contract covering data protection is in place and the sharing is recorded. If a third party asks you for customer or employee data and you cannot point to an approved arrangement, do not share it; refer the request to the Data Protection Office.
+
+## 7. Working away from the office
+When working from home or travelling, use only company-approved devices and connections, keep screens out of sight of others, and never discuss or display customer data in public places. Printing personal data at home or on public printers is prohibited.
+
+## 8. Reporting a suspected breach
+If you believe personal data has been lost, sent to the wrong person, accessed without authority or otherwise exposed, report it to the Data Protection Office and the IT Service Desk immediately, and in all cases within 24 hours of becoming aware of it. Quick reporting limits harm and is always viewed positively; delaying a report, or attempting to cover up an incident, is a serious violation of this policy.
+
+## 9. People's rights
+Customers and employees have legal rights over their personal data, including access, correction and, in many places, deletion. If you receive such a request in any form, pass it to the Data Protection Office the same day; legal deadlines run from the day the company first receives the request, whichever inbox it arrives in.
+
+## 10. Consequences
+Breaches of this policy can expose individuals to harm and the company to regulatory fines and loss of trust. Deliberate mishandling of personal data, including copying customer data to personal accounts, is treated as gross misconduct and may result in dismissal. Honest mistakes reported promptly under section 8 are treated as learning events, not misconduct.
+
+## 11. Worked examples
+Example. Before a weekend, a manager asks an analyst to email the customer master spreadsheet to her personal email account so she can finish a report at home. Section 4 prohibits copying customer data to a personal email account, and convenience is not a ground for an exception. The analyst should decline, suggest the approved remote access route instead, and, if pressed, contact the Data Protection Office.
+Example. An employee sends a spreadsheet containing customer names and phone numbers to the wrong external address by autocomplete error. This is a suspected breach and must be reported to the Data Protection Office and the IT Service Desk immediately under section 8, and in all cases within 24 hours. Reporting it quickly is viewed positively; the employee should not attempt to recall the message quietly and say nothing.
+Example. A marketing supplier asks an employee for a list of customer email addresses for a campaign, but no data protection contract with that supplier can be found. Under section 6 the list must not be shared; the request goes to the Data Protection Office, which will confirm whether an approved arrangement exists.

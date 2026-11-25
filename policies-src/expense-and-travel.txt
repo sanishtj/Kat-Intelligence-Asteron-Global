@@ -1,0 +1,45 @@
+TITLE: Expense and Travel Policy
+SHORT: expense-and-travel
+VERSION: Version 4.0, effective 1 February 2026
+OWNER: Finance
+INTRO: Employees sometimes spend money or travel to do their jobs, and the company reimburses genuine business costs promptly and in full. This policy explains what can be claimed, the evidence required, and the approval rules that protect both the company and the claimant.
+
+## 1. Purpose
+This policy governs business expenses and travel for all Asteron Global employees. Its principles are simple: spend company money as carefully as your own, claim only what you actually spent for a genuine business purpose, evidence every claim, and obtain approval at the right level.
+
+## 2. Claiming expenses
+Expenses must be submitted through the expense system within 30 days of being incurred, with an itemised receipt for every item. Claims must state the business purpose and, for shared costs such as team meals, the names of those present. Expenses submitted more than 90 days after they were incurred will not be reimbursed except in exceptional circumstances approved by Finance.
+
+## 3. Evidence and receipts
+Every claim line requires a receipt showing the date, the supplier, the items and the amount. A card statement alone is not sufficient evidence. If a receipt is genuinely unavailable, explain why in the claim and attach any alternative evidence; repeated claims without receipts will be queried by Finance and may be declined.
+
+## 4. Accuracy of claims
+You must claim only the amount you actually paid, for items you actually received, on the date the cost was incurred. The following are prohibited and are treated as fraud:
+- Claiming for an expense that was not incurred, or claiming the same expense twice.
+- Inflating an amount, altering a receipt, or creating a false or substitute receipt.
+- Claiming personal costs as business costs, or splitting a cost to stay under an approval limit.
+- Asking a colleague, supplier or family member to provide a document that misrepresents a cost.
+Submitting a claim you know to be inaccurate is a breach of the Code of Conduct and Ethics as well as of this policy, whether or not the claim is paid.
+
+## 5. Approval limits
+Claims are approved by your line manager, who confirms the business purpose and evidence. Individual transactions above USD 500 require approval from a manager one level above your own, given before the cost is incurred wherever possible. Finance may sample, query or audit any claim and will recover overpayments, including by deduction from a later reimbursement where lawful.
+
+## 6. Travel booking
+Business travel must be booked through the company's travel tool or travel partner at least seven days in advance where practicable, choosing the lowest logical fare that meets the business need. Economy class is standard for flights under six hours. Travel must be approved by your manager before booking; unapproved travel may not be reimbursed.
+
+## 7. Meals and subsistence
+Reasonable meal costs while travelling on business are reimbursed against receipts, up to the daily limits published by Finance for each region. Alcohol is not reimbursable except as part of approved client hospitality under the Anti-Bribery and Corruption Policy. Where a per diem applies, no receipts are required and no additional meal claims may be made for the same days.
+
+## 8. Accommodation and ground transport
+Hotels must be booked within the nightly rate caps published by Finance for each city. Taxis and ride services may be used where public transport is impractical or unsafe, particularly late at night; rental cars require prior approval and a valid licence held for at least one year.
+
+## 9. Personal travel combined with business travel
+You may add personal days to a business trip with your manager's approval, provided the company bears no additional cost. Any fare difference, and all costs for accompanying family members, are personal and must not be claimed.
+
+## 10. Consequences of misuse
+False or inflated claims are treated as fraud and as a breach of the Code of Conduct and Ethics. Consequences may include repayment, disciplinary action up to and including dismissal, and referral to the authorities in serious cases. Managers who knowingly approve inaccurate claims are treated as participants in the misuse.
+
+## 11. Worked examples
+Example. A sales representative takes the free hotel shuttle to a client site, but a colleague suggests claiming a taxi fare anyway because the amount is small and nobody checks. Claiming for an expense that was not incurred is prohibited by section 4 and treated as fraud, whatever the amount. The representative should claim only the costs actually paid.
+Example. An employee submits the same hotel invoice in two consecutive monthly claims, once by uploading it and once by photographing it. Claiming the same expense twice breaches section 4. Finance sampling under section 5 is designed to catch exactly this, and the overpayment will be recovered in addition to any disciplinary outcome.
+Example. A train ticket receipt is lost during a trip. A one-off claim can still be made under section 3 by explaining the loss in the claim and attaching alternative evidence, such as the booking confirmation. A pattern of missing receipts, however, will be queried and may lead to claims being declined.

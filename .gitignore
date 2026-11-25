@@ -1,0 +1,15 @@
+# Secrets: never commit a real key. Each project keeps its own
+# .streamlit/secrets.toml locally; only the .example template is shared.
+**/.streamlit/secrets.toml
+
+__pycache__/
+*.pyc
+
+# Pipeline working storage is rebuilt by the pipeline steps.
+# The finished ChromaDB store is packaged into the app deliberately
+# at deployment time (app/data/chroma), not committed from here.
+pipeline/storage/extracted/
+pipeline/storage/cleaned/
+pipeline/storage/chunks/
+pipeline/storage/embeddings/
+pipeline/storage/chroma/

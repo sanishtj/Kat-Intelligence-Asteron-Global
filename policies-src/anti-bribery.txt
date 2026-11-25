@@ -1,0 +1,50 @@
+TITLE: Anti-Bribery and Corruption Policy
+SHORT: anti-bribery-and-corruption
+VERSION: Version 2.4, effective 15 January 2026
+OWNER: Ethics and Compliance Office
+INTRO: Asteron Global does not pay, offer or accept bribes in any form, in any country, whether the other party is a government official or a private business. This policy explains what counts as a bribe, the limits that apply to gifts and hospitality, and what you must do when someone offers you something of value.
+
+## 1. Purpose
+This policy prevents bribery and corruption in Asteron Global's business. It supports the Code of Conduct and Ethics and reflects the anti-corruption laws of the countries where we operate, several of which hold the company responsible for bribes paid by people acting on its behalf, including agents and distributors.
+
+## 2. What counts as a bribe
+A bribe is anything of value offered, promised, given or received to influence a decision or to gain an improper business advantage. It does not have to be cash. A bribe can be a gift, a holiday, travel, entertainment, a job offer for a relative, a donation, or a discount that is not available to others. The intention behind the offer matters more than its size: a small item offered to influence a decision is still a bribe.
+
+## 3. Gifts you may accept
+You may accept a modest, unsolicited gift only if all of the following are true:
+- Its value is no more than USD 50 (or the local equivalent).
+- It is a ordinary business courtesy, such as a calendar, a pen or a small festive hamper.
+- It is not cash, a gift card, a voucher or anything easily converted to cash.
+- Accepting it could not reasonably be seen as influencing a decision you are making.
+Any gift that does not meet all four conditions must be declined politely, or, if declining would cause serious offence, accepted on behalf of the company and handed to the Ethics and Compliance Office, which will donate or dispose of it and record what happened.
+
+## 4. Gifts and hospitality you must never accept
+You must never accept:
+- Cash, gift cards, loans or personal discounts from a supplier, customer or partner.
+- Travel, holidays, flights or hotel stays paid for by a supplier, customer or partner, for you or your family.
+- Anything of value from a company that is currently bidding for, or negotiating, business with Asteron Global.
+- Anything offered in exchange for a decision, an introduction or confidential information.
+An offer of a paid holiday or trip from a vendor is an attempted bribe under this policy, however it is described by the person offering it. Decline it and report it.
+
+## 5. Hospitality limits
+Reasonable business meals are permitted where they are occasional, modest and connected to a genuine business discussion. As a guide, hospitality you accept should not exceed USD 75 per person, and you must be present with the host; hospitality for partners or family members who are not part of the business discussion is not permitted. Lavish or frequent entertainment from the same source is never acceptable, even if each event is below the limit.
+
+## 6. Giving gifts and hospitality
+Gifts given in the company's name must be modest, lawful and recorded in the gifts register before they are given, where their value exceeds USD 50. Hospitality for customers must be proportionate and approved by your manager in advance. Special care applies to government officials: in many countries even a small gift to an official is unlawful, and prior written approval from the Ethics and Compliance Office is always required.
+
+## 7. Reporting an offer
+If anyone offers you a bribe, a gift above the limits in this policy, or paid travel or a holiday, you must report it to the Ethics and Compliance Office within two business days, whether or not you accepted it. You can also report through the Speak-Up channel, anonymously if you prefer. Reporting an offer protects you and the company; failing to report one is itself a violation of this policy.
+
+## 8. Third parties and intermediaries
+We are responsible for the conduct of agents, distributors and consultants who act for us. Before engaging an intermediary, complete the required due diligence and use the standard contract clauses provided by Legal. Never ask or allow a third party to do something this policy forbids you from doing yourself, and never make payments to an account in a different country or name without a documented business reason.
+
+## 9. Facilitation payments
+Small unofficial payments to speed up routine government actions, sometimes called facilitation or grease payments, are prohibited, even where they are common locally. The only exception is a payment made under genuine threat to personal safety, which must be reported to the Ethics and Compliance Office as soon as it is safe to do so.
+
+## 10. Consequences
+Bribery is a criminal offence in most countries and can lead to prison for the individual and unlimited fines for the company. Any employee who offers, pays or accepts a bribe, or who fails to report an offer as required by section 7, faces disciplinary action up to and including dismissal.
+
+## 11. Worked examples
+Example. While its bid for a supply contract is being evaluated, a vendor invites the procurement manager and her family to spend a weekend at a resort, described as a factory tour. Paid travel and holidays from a company that is bidding are prohibited by section 4, however they are described. The manager must decline and report the offer to the Ethics and Compliance Office within two business days under section 7.
+Example. A long-standing customer sends a festive hamper worth about USD 40 to a whole department, addressed to the team. This can be accepted: it is unsolicited, below the USD 50 limit in section 3, shared openly, and connected to no pending decision. It should still be recorded in the gifts register.
+Example. An agent suggests paying a consulting fee to a relative of a government official who could speed up a permit. Routing a payment through a third party to influence an official is bribery under sections 2 and 8, and the speed payment itself would breach section 9. The arrangement must not proceed, and the suggestion must be reported.

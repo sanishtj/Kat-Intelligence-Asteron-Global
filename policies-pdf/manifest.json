@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "anti-bribery-and-corruption",
+    "title": "Anti-Bribery and Corruption Policy",
+    "owner": "Ethics and Compliance Office",
+    "version": "Version 2.4, effective 15 January 2026",
+    "file": "anti-bribery-and-corruption.pdf"
+  },
+  {
+    "slug": "code-of-conduct",
+    "title": "Code of Conduct and Ethics",
+    "owner": "Ethics and Compliance Office",
+    "version": "Version 3.0, effective 1 March 2026",
+    "file": "code-of-conduct.pdf"
+  },
+  {
+    "slug": "conflicts-of-interest",
+    "title": "Conflicts of Interest Policy",
+    "owner": "Ethics and Compliance Office",
+    "version": "Version 2.0, effective 10 January 2026",
+    "file": "conflicts-of-interest.pdf"
+  },
+  {
+    "slug": "data-protection-and-privacy",
+    "title": "Data Protection and Privacy Policy",
+    "owner": "Data Protection Office",
+    "version": "Version 5.0, effective 1 March 2026",
+    "file": "data-protection-and-privacy.pdf"
+  },
+  {
+    "slug": "expense-and-travel",
+    "title": "Expense and Travel Policy",
+    "owner": "Finance",
+    "version": "Version 4.0, effective 1 February 2026",
+    "file": "expense-and-travel.pdf"
+  },
+  {
+    "slug": "workplace-harassment-prevention",
+    "title": "Workplace Harassment Prevention Policy",
+    "owner": "People and Culture",
+    "version": "Version 4.1, effective 1 February 2026",
+    "file": "workplace-harassment-prevention.pdf"
+  },
+  {
+    "slug": "health-and-safety",
+    "title": "Health and Safety Policy",
+    "owner": "Environment, Health and Safety Team",
+    "version": "Version 3.3, effective 1 March 2026",
+    "file": "health-and-safety.pdf"
+  },
+  {
+    "slug": "information-security-and-acceptable-use",
+    "title": "Information Security and Acceptable Use Policy",
+    "owner": "Information Security Team",
+    "version": "Version 6.2, effective 20 February 2026",
+    "file": "information-security-and-acceptable-use.pdf"
+  },
+  {
+    "slug": "social-media-and-external-communications",
+    "title": "Social Media and External Communications Policy",
+    "owner": "Corporate Communications",
+    "version": "Version 1.6, effective 5 January 2026",
+    "file": "social-media-and-external-communications.pdf"
+  },
+  {
+    "slug": "speak-up-and-whistleblowing",
+    "title": "Speak-Up and Whistleblowing Policy",
+    "owner": "Ethics and Compliance Office",
+    "version": "Version 3.1, effective 1 March 2026",
+    "file": "speak-up-and-whistleblowing.pdf"
+  }
+]

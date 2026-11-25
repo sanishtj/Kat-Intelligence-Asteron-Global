@@ -1,0 +1,43 @@
+TITLE: Conflicts of Interest Policy
+SHORT: conflicts-of-interest
+VERSION: Version 2.0, effective 10 January 2026
+OWNER: Ethics and Compliance Office
+INTRO: A conflict of interest arises when a personal relationship or financial interest could influence, or appear to influence, a decision you make for Asteron Global. Having a conflict is not itself misconduct; failing to declare it is. This policy explains what to declare, when, and what happens next.
+
+## 1. Purpose
+This policy protects the integrity of Asteron Global's decisions and the people who make them. Declaring an interest allows the company to manage the situation openly, usually by adjusting who makes the decision, and protects you from later allegations of favouritism.
+
+## 2. What counts as a conflict
+A conflict of interest may exist where:
+- You, a close family member or a household member works for, owns part of, or advises a supplier, customer or competitor.
+- You are involved in selecting, managing or paying a supplier that employs a close family member or friend.
+- You supervise, hire, appraise or set pay for a close family member or someone with whom you have a close personal relationship.
+- You hold a second job, directorship or financial interest that overlaps with your Asteron Global responsibilities.
+- You receive personal benefits, beyond the modest gifts allowed by the Anti-Bribery and Corruption Policy, from a business relationship of the company.
+Close family member includes a spouse or partner, parents, children, siblings, and any relative living in your household.
+
+## 3. Your duty to declare
+You must declare any actual, potential or perceived conflict of interest to the Ethics and Compliance Office using the declaration form, as soon as you become aware of it and before you take part in the affected decision. Declarations must be renewed annually and updated whenever circumstances change. If you are unsure whether something counts, declare it: the Ethics and Compliance Office will advise, and declaring something that turns out not to be a conflict carries no penalty.
+
+## 4. Hiring and supervising family members
+Asteron Global welcomes applications from relatives of employees, but no employee may hire, supervise, appraise, promote or set the pay of a close family member, and no employee may sit on an interview or selection panel for one. If a reporting line creates such a relationship, for example through a reorganisation or a marriage, both employees must inform People and Culture so the reporting line can be adjusted.
+
+## 5. Supplier and purchasing decisions
+If a supplier or bidder employs a close family member, or you hold any financial interest in it, you must declare the interest and withdraw from every part of the selection, negotiation, management and payment process for that supplier. You must not share tender information, evaluation criteria or competitor pricing with the supplier or with your family member, and you must not attempt to influence colleagues who remain on the decision.
+
+## 6. Outside work and directorships
+You must obtain written approval from the Ethics and Compliance Office before accepting a paid role, directorship or significant advisory position with another organisation. Approval will normally be refused where the organisation is a competitor, supplier or customer of Asteron Global, or where the role would interfere with your duties or working hours.
+
+## 7. How declarations are handled
+The Ethics and Compliance Office records declarations in the conflicts register and agrees a management plan with you and your manager. Typical plans include removing you from a decision, adding an independent approver, or changing a reporting line. The register is reviewed annually by the Audit Committee. Information you declare is handled confidentially and shared only with those who need it to manage the conflict.
+
+## 8. Gifts and personal benefits
+Personal benefits connected to your role, other than modest items permitted by the Anti-Bribery and Corruption Policy, create at least the appearance of a conflict and must be declined or declared under that policy. Repeated benefits from the same source must be declared under this policy as well.
+
+## 9. Consequences
+Failing to declare a conflict of interest, or taking part in a decision after being asked to withdraw, is a serious violation of this policy and of the Code of Conduct and Ethics, and may result in disciplinary action up to and including dismissal. Decisions taken under an undeclared conflict may be reviewed and reversed.
+
+## 10. Worked examples
+Example. A buyer's husband takes a job with a company that is bidding for an Asteron Global contract the buyer is evaluating. This is a conflict under section 2. The buyer must declare it to the Ethics and Compliance Office before taking any further part in the evaluation, and withdraw from the selection, negotiation and payment process under section 5.
+Example. An engineer is offered paid weekend consulting work by one of the company's customers. Outside paid roles require prior written approval from the Ethics and Compliance Office under section 6, and approval will normally be refused where the organisation is a customer. The engineer must not start the work while approval is outstanding.
+Example. A manager's sister applies for a role in the manager's own department. The manager may not sit on the interview panel, influence the selection, or become her supervisor, under section 4. The manager should tell People and Culture about the relationship as soon as the application is known.
