@@ -193,7 +193,8 @@ def kb_stats() -> dict:
 # ---------------------------------------------------------------- state
 for key, default in (("complaint", ""), ("result", None),
                      ("explanation", ""), ("previews", {}),
-                     ("search_cost", None)):
+                     ("search_cost", None), ("policy_preview", None),
+                     ("chat_messages", []), ("chat_pending", None)):
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -247,7 +248,8 @@ def render_brand_header():
         f'<div class="gk-brand"><div class="gk-logos">{logos}</div>'
         '<h1 class="gk-title">Kat Intelligence</h1>'
         '<p class="gk-sub">GuardKat\u2019s document intelligence, '
-        'running on a fictional company. When a concern is reported, '
+        'running on a fictional company.<br>'
+        'When a concern is reported, '
         'it finds the policies that apply and opens them on the exact '
         'page.</p></div>',
         unsafe_allow_html=True)
@@ -257,11 +259,17 @@ render_brand_header()
 
 # ---------------------------------------------------------------- sidebar
 with st.sidebar:
-    _gk_bytes = guardkat_logo_bytes()
-    if _gk_bytes:
-        _brand_cols = st.columns([1, 3])
-        _brand_cols[0].image(_gk_bytes, width=44)
-        _brand_cols[1].markdown("**GuardKat**\n\nKat Intelligence")
+    _gk_uri = guardkat_logo_uri()
+    _brand_img = (f'<img src="{_gk_uri}" style="height:64px">'
+                  if _gk_uri else "")
+    st.markdown(
+        '<div style="text-align:center; padding:6px 0 2px 0">'
+        f'{_brand_img}'
+        '<div style="font-weight:700; font-size:17px; color:#263238; '
+        'margin-top:6px">GuardKat</div>'
+        '<div style="font-size:12px; letter-spacing:1.5px; '
+        'color:#607d8b">KAT INTELLIGENCE</div></div>',
+        unsafe_allow_html=True)
     st.header("Retrieval controls")
     st.write("Two independent filters. The threshold decides which "
              "passages are relevant enough. K decides how many of "
@@ -276,14 +284,28 @@ with st.sidebar:
     k_label = st.radio(
         "How many passages (K)",
         ["Dynamic — stop at the cliff", "Fixed number"], index=0,
-        help="Dynamic keeps taking passages while their scores stay "
-             "close to the previous one, and stops where they fall "
-             "away. Fixed takes exactly the fixed number below.")
+        help="Dynamic takes the passages above the threshold in "
+             "score order while their scores stay close together. It "
+             "stops at a cliff: a sudden drop of more than 8 points "
+             "between one passage and the next. It also stops at the "
+             "maximum below, whichever comes first. Example: scores "
+             "62, 58 and 41 are all above a 35 threshold, but only "
+             "62 and 58 are used, because 41 drops off a cliff. "
+             "Fixed uses exactly the fixed number below.")
     k_mode = "dynamic" if k_label.startswith("Dynamic") else "fixed"
-    fixed_k = st.number_input("Passages to use (fixed K)", 1, 10,
-                              config.TOP_K_DEFAULT)
-    max_k = st.number_input("Maximum passages (dynamic K cap)", 1, 10,
-                            config.MAX_K_DEFAULT)
+    fixed_k = st.number_input(
+        "Passages to use (fixed K)", 1, 10, config.TOP_K_DEFAULT,
+        disabled=(k_mode == "dynamic"),
+        help="Exactly this many of the passages above the threshold "
+             "are used, best scores first. Enabled when Fixed number "
+             "is selected above.")
+    max_k = st.number_input(
+        "Maximum passages (dynamic K cap)", 1, 10,
+        config.MAX_K_DEFAULT, disabled=(k_mode == "fixed"),
+        help="The most passages dynamic can use. It may use fewer: "
+             "it stops early at a cliff, a sudden drop of more than "
+             "8 points between one passage and the next. Enabled "
+             "when Dynamic is selected above.")
     st.divider()
     if collection is not None:
         st.metric("Policy chunks in the knowledge base",
@@ -342,7 +364,7 @@ def stream_explanation(client, complaint: str, used: list[dict]) -> str:
         chunk.choices[0].delta.content or "" for chunk in stream)
 
 
-def show_matches(used: list[dict]):
+def show_matches(used: list[dict], key_prefix: str = ""):
     for i, hit in enumerate(used, start=1):
         pct = round(hit["similarity"] * 100, 1)
         st.markdown(
@@ -350,7 +372,7 @@ def show_matches(used: list[dict]):
             f"page {hit['page_start']}")
         with st.expander("Read the passage"):
             st.write(hit["text"])
-        preview_key = hit["chunk_id"]
+        preview_key = f"{key_prefix}{hit['chunk_id']}"
         if st.button(f"Preview page {hit['page_start']} with the passage "
                      f"highlighted", key=f"preview_{preview_key}"):
             slot = st.empty()
@@ -370,65 +392,12 @@ def show_matches(used: list[dict]):
         st.divider()
 
 
-tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
-    ["🏠 Playground", "📄 Policies", "⚙️ How it was built",
+tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
+    ["💬 Chat", "📋 Playground", "📄 Policies", "⚙️ How it was built",
      "🔬 Retrieval Lab"])
 
 # ---------------------------------------------------------------- home
 with tab_home:
-    st.markdown("### What is this?")
-    st.write(
-        "Every company has policies: a code of conduct, rules on gifts, "
-        "harassment, expenses, data and more. The problem is finding the "
-        "right one at the moment it matters. When an employee reports a "
-        "concern, the person handling the case usually has to search "
-        "shared drives and old emails to find which policy applies.\n\n"
-        "Kat Intelligence removes that search. The company's own policy "
-        "documents are read in advance and kept ready. The moment a "
-        "concern is reported, it finds the passages that apply, explains "
-        "them in plain words, and opens each document on the exact page.")
-    st.markdown("### Why companies use it")
-    benefit_cols = st.columns(3)
-    with benefit_cols[0]:
-        with st.container(border=True):
-            st.markdown("**The right policy, in seconds**")
-            st.write("The matching policies arrive with the case. "
-                     "Nobody digs through folders, and a new investigator "
-                     "is as well briefed as a senior one.")
-    with benefit_cols[1]:
-        with st.container(border=True):
-            st.markdown("**The exact page, highlighted**")
-            st.write("Every match opens the real document on the page "
-                     "that matters, with the passage highlighted, so "
-                     "anyone can check it with one click.")
-    with benefit_cols[2]:
-        with st.container(border=True):
-            st.markdown("**Honest when nothing matches**")
-            st.write("If no policy covers the concern, it says so "
-                     "instead of guessing. People make the decisions; "
-                     "Kat Intelligence brings the right pages.")
-    st.markdown("### Where it helps")
-    use_cols = st.columns(4)
-    use_cases = [
-        ("Speak-up reports",
-         "A whistleblowing report arrives, and the policies that govern "
-         "it are attached to the case from the start."),
-        ("Harassment inquiries",
-         "The inquiry committee sees the exact clauses, timelines and "
-         "steps the policy promises."),
-        ("Compliance checks",
-         "Gifts, conflicts of interest and expense claims checked "
-         "against the written rule, not memory."),
-        ("Employee questions",
-         "\u201cCan I accept this?\u201d answered from the policy "
-         "itself, with the page to prove it."),
-    ]
-    for col, (title, body) in zip(use_cols, use_cases):
-        with col:
-            with st.container(border=True):
-                st.markdown(f"**{title}**")
-                st.write(body)
-    st.divider()
     st.subheader("Imagine you work at Asteron Global. What happened?")
     st.write("Describe a workplace problem in your own words. Kat "
              "Intelligence searches Asteron's policy documents and "
@@ -516,6 +485,129 @@ with tab_home:
                                  f"{hit['section']} · page "
                                  f"{hit['page_start']}")
 
+# ---------------------------------------------------------------- chat
+with tab_chat:
+    with st.expander("What is this? About Kat Intelligence",
+                     expanded=False):
+        st.markdown("### What is this?")
+        st.write(
+            "Every company has policies: a code of conduct, rules on gifts, "
+            "harassment, expenses, data and more. The problem is finding the "
+            "right one at the moment it matters. When an employee reports a "
+            "concern, the person handling the case usually has to search "
+            "shared drives and old emails to find which policy applies.\n\n"
+            "Kat Intelligence removes that search. The company's own policy "
+            "documents are read in advance and kept ready. The moment a "
+            "concern is reported, it finds the passages that apply, explains "
+            "them in plain words, and opens each document on the exact page.")
+        st.markdown("### Why companies use it")
+        benefit_cols = st.columns(3)
+        with benefit_cols[0]:
+            with st.container(border=True):
+                st.markdown("**The right policy, in seconds**")
+                st.write("The matching policies arrive with the case. "
+                         "Nobody digs through folders, and a new investigator "
+                         "is as well briefed as a senior one.")
+        with benefit_cols[1]:
+            with st.container(border=True):
+                st.markdown("**The exact page, highlighted**")
+                st.write("Every match opens the real document on the page "
+                         "that matters, with the passage highlighted, so "
+                         "anyone can check it with one click.")
+        with benefit_cols[2]:
+            with st.container(border=True):
+                st.markdown("**Honest when nothing matches**")
+                st.write("If no policy covers the concern, it says so "
+                         "instead of guessing. People make the decisions; "
+                         "Kat Intelligence brings the right pages.")
+        st.markdown("### Where it helps")
+        use_cols = st.columns(4)
+        use_cases = [
+            ("Speak-up reports",
+             "A whistleblowing report arrives, and the policies that govern "
+             "it are attached to the case from the start."),
+            ("Harassment inquiries",
+             "The inquiry committee sees the exact clauses, timelines and "
+             "steps the policy promises."),
+            ("Compliance checks",
+             "Gifts, conflicts of interest and expense claims checked "
+             "against the written rule, not memory."),
+            ("Employee questions",
+             "\u201cCan I accept this?\u201d answered from the policy "
+             "itself, with the page to prove it."),
+        ]
+        for col, (title, body) in zip(use_cols, use_cases):
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"**{title}**")
+                    st.write(body)
+    st.write("Ask about an Asteron policy, or describe a situation "
+             "at work. Answers come from the policies themselves, "
+             "with the sources under each answer, and when no policy "
+             "covers it the chat says so instead of guessing.")
+    if collection is None:
+        st.warning("The knowledge base is not built yet, so the chat "
+                   "cannot look anything up. Build it with the "
+                   "pipeline steps first (see the How it was built "
+                   "tab).")
+    st.write("Or start from a sample situation:")
+    chip_cols = st.columns(3)
+    for i, sample in enumerate(SAMPLES):
+        if chip_cols[i % 3].button(sample["label"],
+                                   key=f"chat_chip_{i}"):
+            st.session_state.chat_pending = sample["complaint"]
+    for idx, msg in enumerate(st.session_state.chat_messages):
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if msg["role"] == "assistant" and msg.get("used"):
+                st.markdown("**Sources**")
+                show_matches(msg["used"], key_prefix=f"chat{idx}_")
+    if st.session_state.chat_messages:
+        if st.button("Clear conversation", key="clear_chat"):
+            st.session_state.chat_messages = []
+            st.session_state.chat_pending = None
+            st.rerun()
+    prompt = st.chat_input(
+        "Ask about an Asteron policy, or describe a situation…")
+    new_text = prompt or st.session_state.chat_pending
+    if new_text:
+        st.session_state.chat_pending = None
+        st.session_state.chat_messages.append(
+            {"role": "user", "content": new_text})
+        assistant_idx = len(st.session_state.chat_messages)
+        with st.chat_message("user"):
+            st.markdown(new_text)
+        with st.chat_message("assistant"):
+            if collection is None:
+                answer = ("The knowledge base is not built yet, so I "
+                          "cannot look that up. Build it with the "
+                          "pipeline steps first.")
+                used = []
+                st.markdown(answer)
+            elif not api_key:
+                answer = ("No OpenAI API key is configured, so I "
+                          "cannot search the policies. Add the key to "
+                          "the app's secrets and try again.")
+                used = []
+                st.markdown(answer)
+            else:
+                slot = st.empty()
+                show_loader(slot, "Reading the policies…")
+                client, result = run_retrieval(new_text)
+                slot.empty()
+                used = result["used"]
+                if used:
+                    answer = stream_explanation(client, new_text, used)
+                    st.markdown("**Sources**")
+                    show_matches(used,
+                                 key_prefix=f"chat{assistant_idx}_")
+                else:
+                    answer = config.NO_MATCH_MESSAGE
+                    st.markdown(answer)
+        st.session_state.chat_messages.append(
+            {"role": "assistant", "content": answer, "used": used})
+        st.rerun()
+
 # ---------------------------------------------------------------- policies
 with tab_policies:
     st.subheader("Asteron Global policy library")
@@ -532,9 +624,27 @@ with tab_policies:
         cols[1].write(entry["owner"])
         cols[2].write(entry["version"])
         if pdf_path.exists():
-            cols[3].download_button(
-                "PDF", pdf_path.read_bytes(), file_name=entry["file"],
-                mime="application/pdf", key=f"dl_{entry['slug']}")
+            if cols[3].button("Preview",
+                              key=f"preview_policy_{entry['slug']}"):
+                st.session_state.policy_preview = entry["slug"]
+    if st.session_state.policy_preview:
+        selected = next(
+            (e for e in manifest
+             if e["slug"] == st.session_state.policy_preview), None)
+        if selected is not None:
+            pdf_path = config.policies_dir() / selected["file"]
+            st.divider()
+            st.subheader(f"Preview · {selected['title']}")
+            if pdf_path.exists():
+                # Built-in Streamlit PDF viewer: read and page
+                # through the document in the app, no download.
+                st.pdf(pdf_path.read_bytes())
+            else:
+                st.info("That policy file is not packaged with "
+                        "this app yet.")
+            if st.button("Close preview"):
+                st.session_state.policy_preview = None
+                st.rerun()
 
 # ---------------------------------------------------------------- pipeline
 with tab_pipeline:
