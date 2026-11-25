@@ -5,7 +5,7 @@ an Asteron employee, and Kat Intelligence finds the company policies
 that match it, explains why, and opens the policy PDF at the exact
 page, with the passage highlighted.
 
-Tabs: Playground - Policies - How it was built - Retrieval Lab.
+Tabs: Chat - Playground - Policies - Magic - Prompt.
 """
 
 import base64
@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import tomllib
+from datetime import timedelta
 from pathlib import Path
 
 import streamlit as st
@@ -240,7 +241,8 @@ def kb_stats() -> dict:
 for key, default in (("complaint", ""), ("result", None),
                      ("explanation", ""), ("previews", {}),
                      ("search_cost", None), ("policy_preview", None),
-                     ("chat_messages", []), ("chat_pending", None)):
+                     ("chat_messages", []), ("chat_pending", None),
+                     ("lab_result", None), ("lab_error", None)):
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -268,7 +270,7 @@ BRAND_CSS = """
 .gk-x {font-size: 22px; color: #90a4ae;}
 .gk-title {font-size: 2.4rem; margin: 0.6rem 0 0.1rem; color: #263238;}
 .gk-sub {color: #546e7a; font-size: 0.98rem; margin: 0 auto;
-  max-width: 660px;}
+  max-width: 880px; text-align: center;}
 .gk-loader {display: flex; flex-direction: column; align-items: center;
   padding: 16px 0 4px;}
 .gk-ring {position: relative; width: 104px; height: 104px;}
@@ -281,24 +283,33 @@ BRAND_CSS = """
 .gk-loader-text {margin-top: 10px; color: #546e7a; font-size: 0.92rem;}
 .gk-footer {text-align: center; color: #78909c; font-size: 0.82rem;}
 /* Top spacing: Streamlit reserves a tall band at the top of the
-   main area and above the sidebar header. Pull the content up so
-   both brands sit near the top where they belong. */
-[data-testid="stMainBlockContainer"] {padding-top: 1.6rem;}
-[data-testid="stAppViewBlockContainer"] {padding-top: 1.6rem;}
+   main area and above the sidebar header. Pull the content up,
+   but the main padding must still clear Streamlit's own fixed
+   top header (about 3.5rem, the bar holding Deploy): at 1.6rem
+   the brand logos slid underneath it and looked cut off. 4.25rem
+   clears it with a small gap and is still well under the 6rem
+   default. */
+[data-testid="stMainBlockContainer"] {padding-top: 4.25rem;}
+[data-testid="stAppViewBlockContainer"] {padding-top: 4.25rem;}
 [data-testid="stSidebarHeader"] {padding-top: 0.4rem;
   padding-bottom: 0;}
 /* Tabs that read as tabs: larger labels, boxed tops, and the
-   selected tab white with the brand amber line under it. */
-[data-testid="stTabs"] [data-baseweb="tab-list"] {gap: 6px;}
-[data-testid="stTabs"] [data-baseweb="tab"] {font-size: 1.05rem;
-  font-weight: 600; color: #546e7a; padding: 10px 18px;
-  background: rgba(38, 50, 56, 0.05);
-  border: 1px solid rgba(38, 50, 56, 0.16); border-bottom: none;
-  border-radius: 10px 10px 0 0;}
-[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]
-  {background: #ffffff; color: #263238;}
-[data-testid="stTabs"] [data-baseweb="tab-highlight"]
-  {background-color: #d98e2b; height: 3px;}
+   selected tab white with the brand amber line under it.
+   Streamlit 1.67 tabs are react-aria, not BaseWeb: each tab is
+   [data-testid="stTab"] and the selected one carries
+   data-selected / aria-selected. The old [data-baseweb="tab"]
+   selectors matched nothing, which is why the previous styling
+   round produced no visible change. */
+[data-testid="stTabs"] [data-testid="stTab"]
+  {font-size: 1.08rem !important; font-weight: 600;
+  color: #546e7a !important; padding: 10px 20px;
+  background: rgba(38, 50, 56, 0.06) !important;
+  border: 1px solid rgba(38, 50, 56, 0.18); border-bottom: none;
+  border-radius: 10px 10px 0 0; margin-right: 6px;}
+[data-testid="stTabs"] [data-testid="stTab"][data-selected="true"],
+[data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"]
+  {background: #ffffff !important; color: #263238 !important;
+  box-shadow: inset 0 -3px 0 #d98e2b;}
 /* The chat box is the centrepiece of the Chat tab: a framed,
    tinted panel with a large input, not a bare text box. */
 [data-testid="stForm"] {border: 2px solid #d98e2b;
@@ -307,6 +318,49 @@ BRAND_CSS = """
   box-shadow: 0 2px 12px rgba(38, 50, 56, 0.10);}
 [data-testid="stForm"] [data-testid="stTextInput"] input
   {font-size: 1.1rem; padding: 0.65rem 0.8rem;}
+/* How-it-was-built stepper: a row of icon circles joined by a
+   line, the current step lit in brand amber, and a card under it
+   with a ten-second progress bar while the walk auto-plays. */
+.gk-steps {display: flex; margin: 0.8rem 0 0.4rem;}
+.gk-step {flex: 1; display: flex; flex-direction: column;
+  align-items: center; position: relative;}
+.gk-step:before {content: ""; position: absolute; top: 26px;
+  left: -50%; width: 100%; height: 3px; background: #cfd8dc;}
+.gk-step:first-child:before {display: none;}
+.gk-step.done:before, .gk-step.now:before {background: #d98e2b;}
+.gk-ico {width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; background: #eceff1; border: 2px solid #cfd8dc;
+  position: relative; z-index: 1;}
+.gk-step.done .gk-ico {background: #d98e2b; border-color: #d98e2b;}
+.gk-step.now .gk-ico {background: #ffffff; border-color: #d98e2b;
+  box-shadow: 0 0 0 5px rgba(217, 142, 43, 0.25);
+  transform: scale(1.12);}
+.gk-lab {margin-top: 6px; font-size: 0.8rem; font-weight: 600;
+  color: #78909c;}
+.gk-step.now .gk-lab {color: #263238;}
+.gk-card {border: 2px solid rgba(217, 142, 43, 0.55);
+  border-radius: 14px; background: #fffaf1; padding: 20px 22px;
+  margin-top: 10px; text-align: center;}
+.gk-card-ico {font-size: 2.4rem; line-height: 1;}
+.gk-card-step {margin-top: 8px; font-size: 0.78rem;
+  letter-spacing: 1.5px; color: #b87718; font-weight: 700;}
+.gk-card-title {font-size: 1.45rem; font-weight: 800;
+  color: #263238; margin-top: 2px;}
+.gk-card-text {color: #455a64; max-width: 640px;
+  margin: 8px auto 0;}
+.gk-tiles {display: flex; gap: 12px; justify-content: center;
+  margin-top: 16px; flex-wrap: wrap;}
+.gk-tile {background: #ffffff;
+  border: 1px solid rgba(217, 142, 43, 0.35); border-radius: 12px;
+  padding: 10px 18px; min-width: 130px;}
+.gk-num {font-size: 1.6rem; font-weight: 800; color: #263238;}
+.gk-cap {font-size: 0.78rem; color: #607d8b;}
+.gk-bar {height: 5px; background: rgba(38, 50, 56, 0.08);
+  border-radius: 3px; overflow: hidden; margin-top: 16px;}
+.gk-bar > div {height: 100%; background: #d98e2b;
+  animation: gkfill 10s linear forwards;}
+@keyframes gkfill {from {width: 0;} to {width: 100%;}}
 </style>
 """
 
@@ -330,7 +384,9 @@ def render_brand_header():
     st.markdown(
         f'<div class="gk-brand"><div class="gk-logos">{logos}</div>'
         '<h1 class="gk-title">Kat Intelligence</h1>'
-        '<p class="gk-sub">GuardKat\u2019s document intelligence, '
+        '<p class="gk-sub" style="text-align:center; '
+        'margin-left:auto; margin-right:auto">'
+        'GuardKat\u2019s document intelligence, '
         'running on a fictional company.<br>'
         'When a concern is reported, '
         'it finds the policies that apply and opens them on the exact '
@@ -539,8 +595,8 @@ def show_matches(used: list[dict], key_prefix: str = ""):
 
 
 tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
-    ["💬 Chat", "📋 Playground", "📄 Policies", "⚙️ How it was built",
-     "🔬 Retrieval Lab"])
+    ["💬 Chat", "📋 Playground", "📄 Policies", "✨ Magic",
+     "📝 Prompt"])
 
 # ---------------------------------------------------------------- home
 with tab_home:
@@ -816,25 +872,163 @@ with tab_policies:
                 _policy_dialog(entry, pdf_path.read_bytes())
 
 # ---------------------------------------------------------------- pipeline
+def _built_steps(stats: dict) -> list[dict]:
+    """The seven steps of the whole system, with the real numbers
+    from the knowledge base on disk. Icons included: this walk is
+    meant to be watched, not read."""
+    _p = pipeline_settings()
+    docs = stats.get("documents", "—")
+    pages = stats.get("pages", "—")
+    segments = stats.get("segments", "—")
+    chunks = stats.get("chunks", "—")
+    tokens = stats.get("tokens")
+    token_txt = f"{tokens:,}" if isinstance(tokens, int) else "—"
+    cost_txt = (f"${tokens / 1_000_000 * price:.4f}"
+                if isinstance(tokens, int) else "—")
+    return [
+        {"icon": "📥", "label": "Collect",
+         "title": "Collect the documents",
+         "text": "Asteron Global's policy library, gathered in one "
+                 "place: ethics, bribery, harassment, data protection "
+                 "and the rest of the set.",
+         "tiles": [(str(docs), "policy documents"),
+                   (str(pages), "pages in total")]},
+        {"icon": "📖", "label": "Read",
+         "title": "Read every page",
+         "text": "Each PDF is read page by page, in order. No AI is "
+                 "used in this step, and every passage keeps the page "
+                 "number it came from, which is what makes the "
+                 "exact-page preview possible later.",
+         "tiles": [(str(pages), "pages read"),
+                   (str(segments), "text segments found"),
+                   ("0", "AI calls in this step")]},
+        {"icon": "🧹", "label": "Clean",
+         "title": "Clean the text",
+         "text": "Whitespace is tidied and the letterhead and footer "
+                 "bands are dropped. The policy's own words are the "
+                 "source of truth: nothing is added, removed or "
+                 "rewritten.",
+         "tiles": [("0", "words changed"),
+                   (str(segments), "segments kept")]},
+        {"icon": "✂️", "label": "Chunk",
+         "title": "Cut the text into chunks",
+         "text": "Segments are packed in order into small passages "
+                 "that never cross a section boundary, so every chunk "
+                 "is one complete idea, carrying its document, "
+                 "section and page range.",
+         "tiles": [(str(chunks), "chunks created"),
+                   (f"{_p.get('chunk_max', '—'):,}"
+                    if isinstance(_p.get("chunk_max"), int)
+                    else str(_p.get("chunk_max", "—")),
+                    "max characters each"),
+                   (str(_p.get("chunk_overlap", "—")),
+                    "characters of overlap")]},
+        {"icon": "🔢", "label": "Embed",
+         "title": "Turn chunks into numbers",
+         "text": "text-embedding-3-small turns each chunk into a "
+                 "list of numbers that captures its meaning, so "
+                 "chunks about similar things sit close together. "
+                 "Unchanged chunks are skipped on re-runs, so "
+                 "updates only pay for what changed.",
+         "tiles": [("1,536", "numbers per chunk"),
+                   (token_txt, "tokens in total"),
+                   (cost_txt, "one-time cost")]},
+        {"icon": "🗄️", "label": "Store",
+         "title": "Store them in ChromaDB",
+         "text": "Chunks and their number lists are saved in a "
+                 "persistent vector store, one collection for the "
+                 "company, ready to be searched by meaning rather "
+                 "than by keywords.",
+         "tiles": [(str(chunks), "vectors stored"),
+                   ("1", "collection"),
+                   ("~2 MB", "whole knowledge base")]},
+        {"icon": "💬", "label": "Answer",
+         "title": "Answer, with the exact page",
+         "text": "A message is turned into numbers the same way and "
+                 "matched against the store. The best passages go to "
+                 "the chat model, which may only use them, and the "
+                 "policy opens on the exact page with the passage "
+                 "highlighted. If nothing matches, the answer "
+                 "honestly says so.",
+         "tiles": [(f"{int(config.THRESHOLD_DEFAULT * 100)}%",
+                    "minimum match to count"),
+                   (str(config.MAX_K_DEFAULT), "passages at most"),
+                   ("0", "invented answers")]},
+    ]
+
+
+def _built_nav(target: int) -> None:
+    st.session_state["built_step"] = target
+    st.session_state["built_nav"] = True
+
+
+def _built_toggle_pause() -> None:
+    st.session_state["built_paused"] = (
+        not st.session_state.get("built_paused", False))
+    st.session_state["built_nav"] = True
+
+
+@st.fragment(run_every=timedelta(seconds=10))
+def built_stepper() -> None:
+    """The auto-playing walk through the seven steps. The fragment
+    re-runs every ten seconds and advances one step, looping for
+    ever; the buttons set built_nav so a click never also triggers
+    an advance on the same run."""
+    steps = _built_steps(kb_stats())
+    total = len(steps)
+    if "built_step" not in st.session_state:
+        st.session_state["built_step"] = 0
+        st.session_state.pop("built_nav", None)
+    elif st.session_state.pop("built_nav", False):
+        pass
+    elif not st.session_state.get("built_paused", False):
+        st.session_state["built_step"] = (
+            st.session_state["built_step"] + 1) % total
+    idx = st.session_state["built_step"] % total
+    step = steps[idx]
+    paused = st.session_state.get("built_paused", False)
+    circles = []
+    for i, s in enumerate(steps):
+        cls = "done" if i < idx else "now" if i == idx else "todo"
+        circles.append(
+            f'<div class="gk-step {cls}"><div class="gk-ico">'
+            f'{s["icon"]}</div><div class="gk-lab">{s["label"]}'
+            "</div></div>")
+    st.markdown(f'<div class="gk-steps">{"".join(circles)}</div>',
+                unsafe_allow_html=True)
+    tiles = "".join(
+        f'<div class="gk-tile"><div class="gk-num">{num}</div>'
+        f'<div class="gk-cap">{cap}</div></div>'
+        for num, cap in step["tiles"])
+    bar = "" if paused else '<div class="gk-bar"><div></div></div>'
+    st.markdown(
+        f'<div class="gk-card"><div class="gk-card-ico">'
+        f'{step["icon"]}</div>'
+        f'<div class="gk-card-step">Step {idx + 1} of {total} · '
+        f'{step["label"]}</div>'
+        f'<div class="gk-card-title">{step["title"]}</div>'
+        f'<p class="gk-card-text">{step["text"]}</p>'
+        f'<div class="gk-tiles">{tiles}</div>{bar}</div>',
+        unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    c1.button("← Previous", key="built_prev", width="stretch",
+              on_click=_built_nav, args=((idx - 1) % total,))
+    c2.button("▶ Play" if paused else "⏸ Pause", key="built_pause",
+              width="stretch", on_click=_built_toggle_pause)
+    c3.button("Next →", key="built_next", width="stretch",
+              on_click=_built_nav, args=((idx + 1) % total,))
+
+
 with tab_pipeline:
     st.subheader("How the knowledge base was built")
-    st.write("Documents → page-aware extraction → cleaning → chunking → "
-             "embeddings → ChromaDB. The same pipeline shape as a "
-             "production RAG system, small enough to inspect end to end.")
-    stats = kb_stats()
-    if stats:
-        cols = st.columns(4)
-        cols[0].metric("Policy documents", stats.get("documents", "—"))
-        cols[1].metric("Pages read", stats.get("pages", "—"))
-        cols[2].metric("Chunks created", stats.get("chunks", "—"))
-        cols[3].metric(
-            "Embedding cost",
-            f"${stats['cost_usd']:.4f}" if "cost_usd" in stats
-            else f"${stats['tokens'] / 1_000_000 * price:.4f}"
-            if "tokens" in stats else "—")
-    st.markdown("**The settings we decided** — read live from the "
-                "configuration files, so what you see here is exactly "
-                "what runs. Nothing is hidden in the code.")
+    st.write("The whole system, in seven steps, from the documents "
+             "arriving to an answer opening the exact policy page. "
+             "It plays on its own, one step every ten seconds, or "
+             "step through it yourself with the buttons.")
+    built_stepper()
+    st.caption("In production this same design swaps the local "
+               "ChromaDB folder for Azure AI Search; the chunks and "
+               "the embeddings move across unchanged.")
     _p = pipeline_settings()
     _prep = [
         ("Chunk size (max characters)", _p.get("chunk_max", "—")),
@@ -865,133 +1059,126 @@ with tab_pipeline:
         ("Explanation model", config.CHAT_MODEL),
         ("Explanation temperature", 0.2),
     ]
-    _set_cols = st.columns(2)
-    with _set_cols[0]:
-        st.markdown("*Preparing the documents*")
-        st.dataframe([{"Setting": k, "Value": str(v)} for k, v in _prep],
-                     hide_index=True, use_container_width=True)
-    with _set_cols[1]:
-        st.markdown("*Finding the answers*")
-        st.dataframe([{"Setting": k, "Value": str(v)} for k, v in _find],
-                     hide_index=True, use_container_width=True)
-    if "tokens" in stats:
-        st.markdown("**What it costs** — embedding is a one-time cost "
-                    "per document. Re-runs skip unchanged text, so "
-                    "updates pay only for what changed.")
-        _cost_cols = st.columns(3)
-        _cost_cols[0].metric("Tokens in the knowledge base",
-                             stats["tokens"])
-        _cost_cols[1].metric("Embedding price (per 1M tokens)",
-                             f"${price:.4f}")
-        _cost_cols[2].metric(
-            "Cost to build this knowledge base",
-            f"${stats['tokens'] / 1_000_000 * price:.4f}")
-    st.markdown(
-        "**1 · Extract — what we did.** PyMuPDF reads each PDF page "
-        "by page, in blocks. Every block keeps its page number and "
-        "the current section heading, taken from numbered headings; "
-        "the title and version lines on page 1 are skipped as "
-        "metadata. No LLM is used here. **What we assumed:** the "
-        "letterhead and footer sit in fixed bands at the top and "
-        "bottom of every page and are dropped by position — true "
-        "for documents from one template; a generic handler would "
-        "instead detect lines that repeat across pages.\n\n"
-        "**2 · Clean — what we did.** Whitespace only: line endings "
-        "normalised, runs of spaces collapsed, extra blank lines "
-        "removed. **What we assumed:** the policy's own words are "
-        "the source of truth, so no word is ever added, removed or "
-        "rewritten.\n\n"
-        "**3 · Chunk — what we did.** Segments are packed in order "
-        "into chunks of at most 1,600 characters, never crossing a "
-        "section boundary, with a short overlap carried from the "
-        "previous chunk's tail and a too-short final chunk merged "
-        "into its neighbour. Each chunk records its document, "
-        "section and page range — which is what makes the exact-page "
-        "preview possible. **What we assumed:** a section is the "
-        "natural unit of meaning in a policy, so chunks hold whole "
-        "sections, not arbitrary slices.\n\n"
-        "**4 · Embed — what we did.** text-embedding-3-small turns "
-        "each chunk into a 1,536-number vector. Tokens are counted "
-        "and the cost estimated before any API call. Each chunk's "
-        "text is hashed with SHA-256; a chunk whose hash already "
-        "has an embedding is skipped, so re-runs never pay twice. "
-        "If a policy changes, the changed text produces a new hash "
-        "that does not match, so exactly those chunks are embedded "
-        "again. **What we assumed:** identical text always deserves "
-        "the identical vector.\n\n"
-        "**5 · Store — what we did.** Chunks and vectors are "
-        "upserted into ChromaDB by chunk id, with title, section "
-        "and page range as metadata, so a changed chunk replaces "
-        "its old vector instead of duplicating. **What we assumed:** "
-        "one collection per tenant is enough at this scale; the "
-        "production design swaps the folder for Azure AI Search, "
-        "and the chunks and embeddings move across unchanged.")
+    with st.expander("All the settings, for the curious"):
+        st.markdown("Read live from the configuration files, so "
+                    "what you see here is exactly what runs.")
+        _set_cols = st.columns(2)
+        with _set_cols[0]:
+            st.markdown("*Preparing the documents*")
+            st.dataframe(
+                [{"Setting": k, "Value": str(v)} for k, v in _prep],
+                hide_index=True, use_container_width=True)
+        with _set_cols[1]:
+            st.markdown("*Finding the answers*")
+            st.dataframe(
+                [{"Setting": k, "Value": str(v)} for k, v in _find],
+                hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------- lab
+def _run_lab() -> None:
+    """Prompt tab run: retrieve, fill the prompt's placeholders,
+    generate the answer, and keep everything in session state so
+    the filled prompt and the results stay on the page."""
+    text = st.session_state.get("lab_complaint", "")
+    st.session_state["lab_error"] = None
+    if collection is None or not api_key:
+        st.session_state["lab_result"] = None
+        st.session_state["lab_error"] = (
+            "Needs the knowledge base and an OpenAI key.")
+        return
+    try:
+        client, result, _query_tokens = run_retrieval(text)
+        answer = (explain.explain(client, text, result["used"])
+                  if result["used"] else None)
+        st.session_state["lab_result"] = {
+            "text": text, "candidates": result["candidates"],
+            "used": result["used"], "answer": answer}
+    except Exception as exc:
+        st.session_state["lab_result"] = None
+        st.session_state["lab_error"] = (
+            f"Something went wrong: {exc}")
+
+
 with tab_lab:
-    st.subheader("Retrieval, augmentation, generation — in the open")
-    st.write("The three stages of RAG, shown separately. Retrieval "
-             "finds passages, augmentation assembles them into the "
-             "prompt, generation writes the answer from that prompt "
-             "only. Uses the sidebar controls.")
-    st.markdown("**The prompt in use** — the exact wording sent to "
-                "the model on every answer, read live from the "
-                "engine's configuration so this view cannot drift "
-                "from what actually runs.")
-    st.markdown("System prompt — the same on every request:")
-    st.code(config.SYSTEM_PROMPT)
-    st.markdown("User message — built fresh each time. The "
-                "employee's words go in at the top; the passages the "
-                "retrieval stage found are filled in underneath:")
-    st.code(
-        "Message from an employee:\n"
-        "<the employee's exact words>\n\n"
-        "Policy passages retrieved:\n"
-        "[Source 1] <policy title> - <section> (page <n>)\n"
-        "<passage text, filled in from the knowledge base>\n\n"
-        "[Source 2] <policy title> - <section> (page <n>)\n"
-        "<passage text, filled in from the knowledge base>")
-    st.caption(f"Sent to {config.CHAT_MODEL} at temperature 0.2. "
-               "When no passage passes the threshold and K filters, "
-               "no prompt is built and the model is never called.")
-    lab_text = st.text_area("Message to inspect",
-                            value=SAMPLES[0]["complaint"], height=110,
-                            key="lab_complaint")
-    if st.button("Run the stages", key="lab_run"):
-        if collection is None or not api_key:
-            st.error("Needs the knowledge base and an OpenAI key.")
+    st.subheader("The prompt — how every answer is built")
+    st.write("Every answer is a single prompt with three parts: the "
+             "standing instructions, the employee's message, and the "
+             "policy passages retrieved for that message. The message "
+             "box below sits inside the prompt itself. Type a message, "
+             "run it, and the retrieved passages fill into their "
+             "placeholders. The results appear underneath.")
+    _run = st.session_state.get("lab_result")
+    with st.container(border=True):
+        st.markdown("**🧭 System prompt** — the standing "
+                    "instructions. This is the model's role, the same "
+                    "on every request, read live from the engine's "
+                    "configuration so what you see is exactly what "
+                    "runs:")
+        st.code(config.SYSTEM_PROMPT)
+        st.markdown("**💬 Message from an employee** — this box is "
+                    "part of the prompt. Whatever is typed here goes "
+                    "to the model word for word, under that heading:")
+        lab_text = st.text_area(
+            "Message from an employee",
+            value=SAMPLES[0]["complaint"], height=110,
+            key="lab_complaint", label_visibility="collapsed")
+        st.markdown("**📚 Policy passages retrieved** — the "
+                    "placeholders underneath the message. Retrieval "
+                    "searches the ChromaDB knowledge base and fills "
+                    "them in, fresh every time the prompt is built:")
+        if _run and _run["used"]:
+            st.code("Policy passages retrieved:\n"
+                    + explain.build_context(_run["used"]))
+        elif _run:
+            st.code("Policy passages retrieved:\n"
+                    "<nothing passed the threshold and K filters, "
+                    "so the prompt was never built and the model "
+                    "was never called>")
         else:
-            try:
-                client, result, _query_tokens = run_retrieval(lab_text)
-                st.markdown("**Stage 1 · Retrieval** — every candidate, "
-                            "best first. ✓ = used after the threshold "
-                            "and K filters.")
-                used_ids = {h["chunk_id"] for h in result["used"]}
-                rows = [{
-                    "Used": "✓" if h["chunk_id"] in used_ids else "—",
-                    "Match %": round(h["similarity"] * 100, 1),
-                    "Document": h["title"], "Section": h["section"],
-                    "Page": h["page_start"],
-                } for h in result["candidates"]]
-                st.dataframe(rows, use_container_width=True)
-                st.markdown("**Stage 2 · Augmentation** — the exact "
-                            "prompt the model receives.")
-                if result["used"]:
-                    messages = explain.build_messages(lab_text,
-                                                      result["used"])
-                    st.code(messages[0]["content"] + "\n\n---\n\n"
-                            + messages[1]["content"])
-                    st.markdown("**Stage 3 · Generation** — the answer "
-                                "written from that prompt.")
-                    answer = explain.explain(client, lab_text,
-                                             result["used"])
-                    st.write(answer)
-                else:
-                    st.info("No passages passed the filter, so no prompt "
-                            "is built and the model is never called. "
-                            "That restraint is deliberate.")
-            except Exception as exc:
-                st.error(f"Something went wrong: {exc}")
+            st.code("Policy passages retrieved:\n"
+                    "[Source 1] <policy title> - <section> "
+                    "(page <n>)\n"
+                    "<passage text, filled in from the knowledge "
+                    "base>\n\n"
+                    "[Source 2] <policy title> - <section> "
+                    "(page <n>)\n"
+                    "<passage text, filled in from the knowledge "
+                    "base>")
+        if _run and _run["text"] != lab_text:
+            st.caption("The passages above belong to the message "
+                       "you last ran. You have changed the message "
+                       "since; run it again to refill the prompt.")
+        st.button("Run it — fill the prompt and get the answer",
+                  key="lab_run", on_click=_run_lab, type="primary",
+                  width="stretch")
+    st.caption(f"Sent to {config.CHAT_MODEL} at temperature 0.2, "
+               "using the sidebar controls. When no passage passes "
+               "the threshold and K filters, no prompt is built and "
+               "the model is never called.")
+    if st.session_state.get("lab_error"):
+        st.error(st.session_state["lab_error"])
+    if _run:
+        st.markdown("**What retrieval found** — every candidate, "
+                    "best first. ✓ = the passages that filled the "
+                    "prompt above, after the threshold and K "
+                    "filters.")
+        _used_ids = {h["chunk_id"] for h in _run["used"]}
+        _rows = [{
+            "Used": "✓" if h["chunk_id"] in _used_ids else "—",
+            "Match %": round(h["similarity"] * 100, 1),
+            "Document": h["title"], "Section": h["section"],
+            "Page": h["page_start"],
+        } for h in _run["candidates"]]
+        st.dataframe(_rows, use_container_width=True)
+        if _run["used"]:
+            st.markdown("**The answer** — written by the model "
+                        "from the filled prompt above, and from "
+                        "nothing else:")
+            st.write(_run["answer"])
+        else:
+            st.info("No passages passed the filter, so no prompt "
+                    "was built and the model was never called. "
+                    "That restraint is deliberate.")
 
 # ---------------------------------------------------------------- footer
 st.divider()
