@@ -9,6 +9,7 @@ Tabs: Chat - Playground - Policies - Magic - Prompt.
 """
 
 import base64
+import html
 import io
 import json
 import os
@@ -282,6 +283,14 @@ BRAND_CSS = """
 @keyframes gkspin {to {transform: rotate(360deg);}}
 .gk-loader-text {margin-top: 10px; color: #546e7a; font-size: 0.92rem;}
 .gk-footer {text-align: center; color: #78909c; font-size: 0.82rem;}
+/* A prompt piece on the Prompt tab: the exact text the model
+   receives, line breaks kept, long lines wrapped inside the
+   box instead of scrolling sideways for ever. */
+.gk-prompt {background: #f7f7f5; border: 1px solid rgba(38, 50, 56, 0.14);
+  border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem; line-height: 1.55; color: #263238;
+  white-space: pre-wrap; overflow-wrap: break-word;}
 /* Top spacing: Streamlit reserves a tall band at the top of the
    main area and above the sidebar header. Pull the content up,
    but the main padding must still clear Streamlit's own fixed
@@ -362,8 +371,16 @@ BRAND_CSS = """
 .gk-bar {height: 5px; background: rgba(38, 50, 56, 0.08);
   border-radius: 3px; overflow: hidden; margin-top: 16px;}
 .gk-bar > div {height: 100%; background: #d98e2b;
-  animation: gkfill 15s linear forwards;}
-@keyframes gkfill {from {width: 0;} to {width: 100%;}}
+  animation-duration: 15s; animation-timing-function: linear;
+  animation-fill-mode: forwards;}
+/* Three identical keyframe sets on purpose: the stepper names
+   one per run, alternating, because a browser will not restart
+   an animation on an element it kept from the previous run -
+   with a single name the bar filled once and then sat frozen
+   at the end state through every autoplay step. */
+@keyframes gkfillA {from {width: 0;} to {width: 100%;}}
+@keyframes gkfillB {from {width: 0;} to {width: 100%;}}
+@keyframes gkfillR {from {width: 0;} to {width: 100%;}}
 /* Stepper controls, deliberately prominent: big bold labels,
    amber outlines, a warm fill on Previous and Next, and Play or
    Pause as a filled primary button, so nobody misses them. */
@@ -389,6 +406,12 @@ BRAND_CSS = """
   position: relative; z-index: 1;}
 [class*="st-key-built_step_"] button:hover {
   border-color: #d98e2b; color: #263238;}
+/* Each step's icon sits in a small white circle, so the icon
+   stays readable when its tile fills amber behind it. */
+[class*="st-key-built_step_"] button [data-testid="stIconEmoji"]
+  {display: inline-flex; align-items: center;
+   justify-content: center; width: 30px; height: 30px;
+   border-radius: 50%; background: #ffffff; flex-shrink: 0;}
 </style>
 """
 
@@ -1051,6 +1074,13 @@ def built_stepper() -> None:
                     "color:#455a64;")
         state_css.append(
             f'[class*="st-key-built_step_{i}"] button {{{look}}}')
+        # The same look on hover: Streamlit's own hover style
+        # would otherwise wash the tile translucent and the
+        # joining line behind it shows through, cutting across
+        # the tile's text. Hover changes nothing but the cursor.
+        state_css.append(
+            f'[class*="st-key-built_step_{i}"] button:hover '
+            f'{{{look}}}')
     # The joining line lives on the columns row itself: a grey
     # track running from the first tile's centre to the last
     # tile's, with an amber fill over it from the start to the
@@ -1080,7 +1110,7 @@ def built_stepper() -> None:
     icon_cols = st.columns(total)
     for i, (col, s) in enumerate(zip(icon_cols, steps)):
         with col:
-            st.button(f'{s["icon"]} {s["label"]}',
+            st.button(s["label"], icon=s["icon"],
                       key=f"built_step_{i}", width="stretch",
                       on_click=_built_jump, args=(i,),
                       help=f"Go to step {i + 1}: {s['label']}")
@@ -1090,13 +1120,25 @@ def built_stepper() -> None:
         for num, cap in step["tiles"])
     cta = (f'<div class="gk-card-cta">{step["cta"]}</div>'
            if step.get("cta") else "")
+    # The bar's fill is a CSS animation, and on the fragment's
+    # timed re-runs the browser keeps the bar's element whenever
+    # its HTML is unchanged - a kept element never restarts its
+    # animation, so the bar filled once and sat at the end state
+    # through the whole autoplay. Alternating between two
+    # identical keyframe names on every run forces the restart.
+    # The RAG step keeps one fixed name and a 30 second duration,
+    # so its bar runs unbroken through the extra hold interval.
+    _tick = st.session_state.get("built_tick", 0) + 1
+    st.session_state["built_tick"] = _tick
     if paused:
         bar = ""
     elif idx == total - 1:
-        bar = ('<div class="gk-bar"><div style="animation-duration:'
-               '30s"></div></div>')
+        bar = ('<div class="gk-bar"><div style="animation-name: '
+               'gkfillR; animation-duration: 30s"></div></div>')
     else:
-        bar = '<div class="gk-bar"><div></div></div>'
+        _fill = "gkfillA" if _tick % 2 == 0 else "gkfillB"
+        bar = (f'<div class="gk-bar"><div style="animation-name: '
+               f'{_fill}"></div></div>')
     st.markdown(
         f'<div class="gk-card"><div class="gk-card-ico">'
         f'{step["icon"]}</div>'
@@ -1110,8 +1152,11 @@ def built_stepper() -> None:
         # On the RAG step there is no call-to-action text. Instead a
         # large pointing hand bobs up and down directly underneath
         # the Prompt tab itself, so the next move is obvious without
-        # a word of instruction. The rule lives only while this step
-        # is showing: the fragment re-renders without it afterwards.
+        # a word of instruction. The hand belongs to the Magic tab:
+        # the style stays in the page after a tab switch (the tab
+        # panel only hides), so the rule is gated on the Magic tab
+        # being the selected one, and the hand vanishes the moment
+        # any other tab is picked.
         # The tabs in this Streamlit version are not buttons:
         # they are divs carrying data-testid "stTab", five of
         # them in a row, so the fifth one is the Prompt tab.
@@ -1121,19 +1166,21 @@ def built_stepper() -> None:
         _lists = ('[data-testid="stTabList"], '
                   '[data-baseweb="tab-list"], [role="tablist"]')
         _tabs = '[data-testid="stTab"]:nth-of-type(5)'
+        _magic = '[data-testid="stTab"]:nth-of-type(4)'
         _hands = ", ".join(
-            f"{sel}::after" for sel in _tabs.split(", "))
+            f'{_magic}[{attr}="true"] + {_tabs}::after'
+            for attr in ("aria-selected", "data-selected"))
         st.markdown(
             "<style>"
             f"{_lists} {{overflow: visible !important;}}"
             f"{_tabs} {{position: relative;}}"
             f"{_hands} {{content: \"👆\"; position: absolute; "
-            "top: 100%; left: 50%; font-size: 30px; line-height: 1; "
+            "top: 100%; left: 50%; font-size: 42px; line-height: 1; "
             "z-index: 50; pointer-events: none; "
-            "animation: gkbob 0.9s ease-in-out infinite alternate;}"
+            "animation: gkbob 0.55s ease-in-out infinite alternate;}"
             "@keyframes gkbob {"
             "from {transform: translate(-50%, 0);}"
-            "to {transform: translate(-50%, 7px);}}"
+            "to {transform: translate(-50%, 10px);}}"
             "</style>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     c1.button("← Previous", key="built_prev", width="stretch",
@@ -1226,6 +1273,14 @@ def _run_lab() -> None:
             f"Something went wrong: {exc}")
 
 
+def prompt_block(text: str) -> None:
+    """Show one piece of the prompt exactly as the model
+    receives it, wrapped inside its box (st.code would give
+    it a sideways scroller that runs on for ever)."""
+    st.markdown(f'<div class="gk-prompt">{html.escape(text)}</div>',
+                unsafe_allow_html=True)
+
+
 with tab_lab:
     st.subheader("The prompt — how every answer is built")
     st.write("Every answer is a single prompt: the standing "
@@ -1245,7 +1300,7 @@ with tab_lab:
         _sys_head, _sys_sep, _sys_tail = (
             config.SYSTEM_PROMPT.partition("Using ONLY"))
         if _sys_sep:
-            st.code(_sys_head, language=None)
+            prompt_block(_sys_head)
             st.markdown("**🛡️ Grounding rules** — the part of the "
                         "system prompt that keeps the answer honest: "
                         "only the passages may be used, cite each "
@@ -1254,9 +1309,9 @@ with tab_lab:
                         "they are easy to see; the model receives "
                         "them inside the system prompt, word for "
                         "word:")
-            st.code("Using ONLY" + _sys_tail, language=None)
+            prompt_block("Using ONLY" + _sys_tail)
         else:
-            st.code(config.SYSTEM_PROMPT, language=None)
+            prompt_block(config.SYSTEM_PROMPT)
         st.markdown("**💬 Message from an employee (user "
                     "prompt)** — this box is part of the prompt. "
                     "Whatever is typed here goes to the model word "
@@ -1269,25 +1324,26 @@ with tab_lab:
                     "placeholders underneath the message. Retrieval "
                     "searches the ChromaDB knowledge base and fills "
                     "them in, fresh every time the prompt is built:")
+        if _run:
+            _n = len(_run["used"])
+            st.markdown(
+                f"**{_n} policy passage{'s' if _n != 1 else ''} "
+                "used for this answer** — however many passed "
+                "the threshold and K filters on this run, counted "
+                "from the retrieval itself, never a fixed number:")
         if _run and _run["used"]:
-            st.code("Policy passages retrieved:\n"
-                    + explain.build_context(_run["used"]),
-                    language=None)
+            prompt_block("Policy passages retrieved:\n"
+                         + explain.build_context(_run["used"]))
         elif _run:
-            st.code("Policy passages retrieved:\n"
-                    "<nothing passed the threshold and K filters, "
-                    "so the prompt was never built and the model "
-                    "was never called>", language=None)
+            prompt_block("Policy passages retrieved:\n"
+                         "<nothing passed the threshold and K "
+                         "filters, so the prompt was never built "
+                         "and the model was never called>")
         else:
-            st.code("Policy passages retrieved:\n"
-                    "[Source 1] <policy title> - <section> "
-                    "(page <n>)\n"
-                    "<passage text, filled in from the knowledge "
-                    "base>\n\n"
-                    "[Source 2] <policy title> - <section> "
-                    "(page <n>)\n"
-                    "<passage text, filled in from the knowledge "
-                    "base>", language=None)
+            prompt_block("Policy passages retrieved:\n"
+                         "<the passages retrieval finds will fill "
+                         "in here, one after another, each with "
+                         "its policy, section and page>")
         if _run and _run["text"] != lab_text:
             st.caption("The passages above belong to the message "
                        "you last ran. You have changed the message "
