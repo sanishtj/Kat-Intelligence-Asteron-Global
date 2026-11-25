@@ -777,6 +777,35 @@ def show_matches(used: list[dict], key_prefix: str = "",
         st.divider()
 
 
+def show_all_matches(returned: list[dict], used_ids: set):
+    """Fine-tune's full view of a run: EVERY chunk that was
+    returned for the question, in the order it came back, each
+    with its passage text and exact-page preview. A coloured
+    band tells the two kinds apart at a glance: green for a
+    chunk the answer actually used, grey for one that was
+    returned but not used."""
+    for hit in returned:
+        is_used = hit["chunk_id"] in used_ids
+        band, tint, tag = (
+            ("#2e7d32", "#e8f5e9", "USED IN THE ANSWER")
+            if is_used else
+            ("#9e9e9e", "#f5f5f5", "RETURNED, NOT USED"))
+        st.markdown(
+            f'<div style="border-left:4px solid {band}; '
+            f'background:{tint}; padding:6px 10px; '
+            f'border-radius:0 6px 6px 0; margin-top:10px">'
+            f"<strong>{html.escape(hit['title'])}</strong> · "
+            f"{html.escape(hit['section'])} · page "
+            f"{hit['page_start']}<br>"
+            f'<span style="color:{band}; font-weight:700; '
+            f'font-size:0.85em">{tag}</span></div>',
+            unsafe_allow_html=True)
+        with st.expander("Read the passage"):
+            st.write(hit["text"])
+        _preview_button(hit)
+        st.divider()
+
+
 def show_references(used: list[dict], key_prefix: str = ""):
     """Chat's compact citations, ChatGPT-style: one clickable
     reference per place the answer rests on — the policy name,
@@ -853,10 +882,17 @@ with tab_home:
                 st.session_state.explanation = ""
                 usage = {}
                 if result["grounded"]:
+                    # Gathered, not streamed to the page: the
+                    # result block below renders the explanation
+                    # from session state, and streaming it here
+                    # as well showed the answer twice on the run
+                    # pass (seen live 25 Nov 2026). Chat keeps
+                    # the streamed path; it reruns and renders
+                    # from storage, so it never doubles.
                     (st.session_state.explanation, usage,
                      st.session_state.sources,
                      st.session_state.not_covered) = \
-                        stream_explanation(client, text, result["used"])
+                        collect_explanation(client, text, result["used"])
                 _chat_tokens = usage.get(
                     "total_tokens",
                     usage.get("prompt_tokens", 0)
@@ -905,7 +941,8 @@ with tab_home:
                 if _cost_text:
                     st.caption(_cost_text)
                 st.caption(chunks_line(len(used), 0))
-                show_checked_passages(used)
+                st.subheader("Passages returned for this question")
+                show_all_matches(used, set())
             else:
                 sources = st.session_state.get("sources") or used
                 _s = result["settings"]
@@ -918,8 +955,9 @@ with tab_home:
                     st.markdown(st.session_state.explanation)
                 if _cost_text:
                     st.caption(_cost_text)
-                st.subheader("Policies that match")
-                show_matches(sources, show_scores=False)
+                st.subheader("Passages returned for this question")
+                show_all_matches(
+                    used, {s["chunk_id"] for s in sources})
         else:
             st.warning(config.NO_MATCH_MESSAGE)
             if _cost_text:
