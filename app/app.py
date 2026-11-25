@@ -376,24 +376,19 @@ BRAND_CSS = """
 .st-key-built_pause button {font-size: 1.05rem; font-weight: 700;
   border: 2px solid #b87718; border-radius: 10px;
   padding: 0.55rem 0.5rem;}
-/* The step icons are real buttons wearing the circle look; the
-   state colours (done, current, to come) are emitted per run by
-   the stepper itself, because they follow the current step. */
-[class*="st-key-built_step_"] button {display: block;
-  margin: 0 auto; width: 52px; height: 52px; border-radius: 50%;
-  font-size: 24px; line-height: 1; padding: 0; position: relative;
-  z-index: 1;
-  background: #eceff1; border: 2px solid #cfd8dc; color: #263238;}
+/* The seven steps are full-width tile buttons, one per column.
+   Streamlit's own layout stretches each tile across its column
+   and centres its label, so the row reads as one connected bar
+   and nothing depends on wrapper widths or absolute positioning.
+   The state colours (done in amber, the current one ringed, the
+   rest grey) are emitted per run by the stepper itself. */
+[class*="st-key-built_step_"] button {width: 100%;
+  font-size: 0.98rem; font-weight: 700; border-radius: 12px;
+  padding: 0.65rem 0.2rem; background: #eceff1;
+  border: 2px solid #cfd8dc; color: #455a64;
+  position: relative; z-index: 1;}
 [class*="st-key-built_step_"] button:hover {
   border-color: #d98e2b; color: #263238;}
-/* Each icon wrapper centres its circle and paints its own slice
-   of the joining line behind it (the slice colours are emitted
-   per run, because they follow the current step); the circle
-   itself sits above the line. */
-[class*="st-key-built_step_"] {position: relative;
-  display: flex; justify-content: center;}
-.gk-steplab {text-align: center; font-size: 0.8rem;
-  font-weight: 600; color: #78909c; margin-top: 4px;}
 </style>
 """
 
@@ -1036,56 +1031,59 @@ def built_stepper() -> None:
     idx = st.session_state["built_step"] % total
     step = steps[idx]
     paused = st.session_state.get("built_paused", False)
-    # The seven icons are real buttons: one click jumps straight
-    # to that step and pauses the walk there, so a reader can sit
-    # on the step they care about. Their state colours (done in
+    # The seven steps are tile buttons, one per column, each
+    # carrying its icon and its name: one click jumps straight to
+    # that step and pauses the walk there, so a reader can sit on
+    # the step they care about. Their state colours (done in
     # amber, the current one ringed, the rest grey) are emitted
     # per run because they follow the current step.
     state_css = []
     for i in range(total):
         if i < idx:
-            look = "background:#d98e2b;border-color:#d98e2b;"
+            look = ("background:#d98e2b;border-color:#d98e2b;"
+                    "color:#ffffff;")
         elif i == idx:
             look = ("background:#ffffff;border-color:#d98e2b;"
-                    "box-shadow:0 0 0 5px rgba(217,142,43,0.25);"
-                    "transform:scale(1.12);")
+                    "color:#263238;"
+                    "box-shadow:0 0 0 5px rgba(217,142,43,0.25);")
         else:
-            look = "background:#eceff1;border-color:#cfd8dc;"
+            look = ("background:#eceff1;border-color:#cfd8dc;"
+                    "color:#455a64;")
         state_css.append(
             f'[class*="st-key-built_step_{i}"] button {{{look}}}')
-    for i in range(total):
-        # The slice of the joining line this icon's wrapper paints
-        # behind its circle: amber where the walk has passed, half
-        # and half on the current step, grey where it has not
-        # reached. The end slices start and stop at their circle.
-        if i < idx:
-            seg = "#d98e2b"
-        elif i == idx:
-            seg = ("linear-gradient(to right, #d98e2b 0%, "
-                   "#d98e2b 50%, #cfd8dc 50%, #cfd8dc 100%)")
-        else:
-            seg = "#cfd8dc"
-        left = "50%" if i == 0 else "0"
-        right = "50%" if i == total - 1 else "0"
-        state_css.append(
-            f'[class*="st-key-built_step_{i}"]::before '
-            f'{{content:""; position:absolute; top:26px; '
-            f"left:{left}; right:{right}; height:3px; "
-            f"background:{seg}; z-index:0;}}")
+    # The joining line lives on the columns row itself: a grey
+    # track running from the first tile's centre to the last
+    # tile's, with an amber fill over it from the start to the
+    # current tile's centre. The tiles paint above the line, so
+    # it shows in the gaps between them and reads as one line
+    # joining all seven steps. (An earlier version painted the
+    # line as segments behind each icon; when the icons became
+    # real buttons the segments anchored to the wrong elements
+    # and the line vanished. The row is found by what it holds,
+    # which no other row on the page does.)
+    _row = ('[data-testid="stHorizontalBlock"]'
+            ':has([class*="st-key-built_step_0"])')
+    _c = 50.0 / total
+    state_css.append(f"{_row} {{position: relative;}}")
+    state_css.append(
+        f'{_row}::before {{content: ""; position: absolute; '
+        f"top: 50%; transform: translateY(-50%); "
+        f"left: {_c:.3f}%; right: {_c:.3f}%; height: 3px; "
+        f"background: #cfd8dc; z-index: 0;}}")
+    state_css.append(
+        f'{_row}::after {{content: ""; position: absolute; '
+        f"top: 50%; transform: translateY(-50%); "
+        f"left: {_c:.3f}%; width: {idx * 100.0 / total:.3f}%; "
+        f"height: 3px; background: #d98e2b; z-index: 0;}}")
     st.markdown(f"<style>{''.join(state_css)}</style>",
                 unsafe_allow_html=True)
     icon_cols = st.columns(total)
     for i, (col, s) in enumerate(zip(icon_cols, steps)):
         with col:
-            st.button(s["icon"], key=f"built_step_{i}",
+            st.button(f'{s["icon"]} {s["label"]}',
+                      key=f"built_step_{i}", width="stretch",
                       on_click=_built_jump, args=(i,),
                       help=f"Go to step {i + 1}: {s['label']}")
-            weight = "800" if i == idx else "600"
-            colour = "#263238" if i == idx else "#78909c"
-            st.markdown(
-                f'<div class="gk-steplab" style="font-weight:'
-                f'{weight}; color:{colour}">{s["label"]}</div>',
-                unsafe_allow_html=True)
     tiles = "".join(
         f'<div class="gk-tile"><div class="gk-num">{num}</div>'
         f'<div class="gk-cap">{cap}</div></div>'
@@ -1114,14 +1112,15 @@ def built_stepper() -> None:
         # the Prompt tab itself, so the next move is obvious without
         # a word of instruction. The rule lives only while this step
         # is showing: the fragment re-renders without it afterwards.
-        # The tab strip is named three ways across Streamlit
-        # versions, so the rules name all three; whichever the
-        # running version uses is the one that lands.
+        # The tabs in this Streamlit version are not buttons:
+        # they are divs carrying data-testid "stTab", five of
+        # them in a row, so the fifth one is the Prompt tab.
+        # (Verified in a real browser; an earlier version of
+        # this rule aimed at tab buttons, which do not exist
+        # here, and the hand never rendered.)
         _lists = ('[data-testid="stTabList"], '
                   '[data-baseweb="tab-list"], [role="tablist"]')
-        _tabs = ('[data-testid="stTabList"] button:nth-of-type(5), '
-                 '[data-baseweb="tab-list"] button:nth-of-type(5), '
-                 '[role="tablist"] button:nth-of-type(5)')
+        _tabs = '[data-testid="stTab"]:nth-of-type(5)'
         _hands = ", ".join(
             f"{sel}::after" for sel in _tabs.split(", "))
         st.markdown(
@@ -1229,12 +1228,13 @@ def _run_lab() -> None:
 
 with tab_lab:
     st.subheader("The prompt — how every answer is built")
-    st.write("Every answer is a single prompt with three parts: the "
-             "standing instructions, the employee's message, and the "
-             "policy passages retrieved for that message. The message "
-             "box below sits inside the prompt itself. Type a message, "
-             "run it, and the retrieved passages fill into their "
-             "placeholders. The results appear underneath.")
+    st.write("Every answer is a single prompt: the standing "
+             "instructions, the grounding rules inside them, the "
+             "employee's message, and the policy passages retrieved "
+             "for that message. The message box below sits inside "
+             "the prompt itself. Type a message, run it, and the "
+             "retrieved passages fill into their placeholders. The "
+             "results appear underneath.")
     _run = st.session_state.get("lab_result")
     with st.container(border=True):
         st.markdown("**🧭 System prompt** — the standing "
@@ -1242,10 +1242,25 @@ with tab_lab:
                     "on every request, read live from the engine's "
                     "configuration so what you see is exactly what "
                     "runs:")
-        st.code(config.SYSTEM_PROMPT)
-        st.markdown("**💬 Message from an employee** — this box is "
-                    "part of the prompt. Whatever is typed here goes "
-                    "to the model word for word, under that heading:")
+        _sys_head, _sys_sep, _sys_tail = (
+            config.SYSTEM_PROMPT.partition("Using ONLY"))
+        if _sys_sep:
+            st.code(_sys_head, language=None)
+            st.markdown("**🛡️ Grounding rules** — the part of the "
+                        "system prompt that keeps the answer honest: "
+                        "only the passages may be used, cite each "
+                        "one, invent nothing, and say so when the "
+                        "passages do not answer. Shown separately so "
+                        "they are easy to see; the model receives "
+                        "them inside the system prompt, word for "
+                        "word:")
+            st.code("Using ONLY" + _sys_tail, language=None)
+        else:
+            st.code(config.SYSTEM_PROMPT, language=None)
+        st.markdown("**💬 Message from an employee (user "
+                    "prompt)** — this box is part of the prompt. "
+                    "Whatever is typed here goes to the model word "
+                    "for word, under that heading:")
         lab_text = st.text_area(
             "Message from an employee",
             value=SAMPLES[0]["complaint"], height=110,
@@ -1256,12 +1271,13 @@ with tab_lab:
                     "them in, fresh every time the prompt is built:")
         if _run and _run["used"]:
             st.code("Policy passages retrieved:\n"
-                    + explain.build_context(_run["used"]))
+                    + explain.build_context(_run["used"]),
+                    language=None)
         elif _run:
             st.code("Policy passages retrieved:\n"
                     "<nothing passed the threshold and K filters, "
                     "so the prompt was never built and the model "
-                    "was never called>")
+                    "was never called>", language=None)
         else:
             st.code("Policy passages retrieved:\n"
                     "[Source 1] <policy title> - <section> "
@@ -1271,7 +1287,7 @@ with tab_lab:
                     "[Source 2] <policy title> - <section> "
                     "(page <n>)\n"
                     "<passage text, filled in from the knowledge "
-                    "base>")
+                    "base>", language=None)
         if _run and _run["text"] != lab_text:
             st.caption("The passages above belong to the message "
                        "you last ran. You have changed the message "
