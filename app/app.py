@@ -41,6 +41,52 @@ def count_tokens(text: str) -> int | None:
     """Token count for cost display; None when tiktoken is absent."""
     return len(_enc.encode(text)) if _enc is not None else None
 
+
+def exchange_cost_usd(query_tokens, usage, emb_price, in_price,
+                      out_price) -> float:
+    """The full cost of one exchange: embedding the question, plus
+    the chat call when an answer was generated."""
+    total = (query_tokens or 0) / 1_000_000 * emb_price
+    if usage:
+        total += usage.get("prompt_tokens", 0) / 1_000_000 * in_price
+        total += (usage.get("completion_tokens", 0)
+                  / 1_000_000 * out_price)
+    return total
+
+
+@st.cache_data(show_spinner=False)
+def kb_embedding_tokens(_collection, count: int):
+    """Total tokens embedded to build this knowledge base, counted
+    from the stored chunk texts with the same tokenizer the
+    embedder used, so the burn figure is real wherever the store
+    can be read."""
+    if _enc is None:
+        return None
+    try:
+        documents = _collection.get()["documents"]
+        return sum(len(_enc.encode(doc)) for doc in documents)
+    except Exception:
+        return None
+
+
+def chat_cost_caption(tokens, emb_price, in_price, out_price):
+    """One quiet caption line under a chat answer: what the
+    exchange used and what it cost."""
+    if not tokens:
+        return
+    q = tokens.get("query", 0)
+    p = tokens.get("prompt", 0)
+    c = tokens.get("completion", 0)
+    cost = exchange_cost_usd(
+        q, {"prompt_tokens": p, "completion_tokens": c},
+        emb_price, in_price, out_price)
+    if p or c:
+        st.caption(f"Search and answer: {q + p + c:,} tokens · "
+                   f"about ${cost:.6f}")
+    else:
+        st.caption(f"Policy search: {q:,} tokens · "
+                   f"about ${cost:.6f}")
+
 def _page_icon():
     for candidate in (APP_DIR / "assets" / "guardkat-logo.png",
                       APP_DIR.parent / "assets" / "guardkat-logo.png"):
@@ -204,6 +250,16 @@ api_key = get_api_key()
 # ---------------------------------------------------------------- header
 BRAND_CSS = """
 <style>
+/* Sidebar chrome: Streamlit leaves a tall empty gap above the
+   sidebar content to clear its own collapse button, and the button
+   itself renders near-white on white. Trim the gap so the brand
+   sits near the top, and make the collapse control properly
+   visible (never hidden: it must stay usable). */
+[data-testid="stSidebarUserContent"] {padding-top: 1rem;}
+[data-testid="stSidebarCollapseButton"] {opacity: 1; color: #263238;
+  background: rgba(38, 50, 56, 0.06); border-radius: 6px;}
+[data-testid="stSidebarCollapsedControl"] {opacity: 1; color: #263238;
+  background: rgba(38, 50, 56, 0.06); border-radius: 6px;}
 .gk-brand {text-align: center; padding: 0.4rem 0 0.2rem;}
 .gk-logos {display: flex; justify-content: center; align-items: center;
   gap: 20px;}
@@ -310,6 +366,17 @@ with st.sidebar:
     if collection is not None:
         st.metric("Policy chunks in the knowledge base",
                   collection.count())
+        _kb_tokens = kb_embedding_tokens(collection,
+                                         collection.count())
+        if _kb_tokens:
+            _emb_price_now = float(st.session_state.get(
+                "embedding_price",
+                float(os.environ.get("EMBEDDING_PRICE_USD", 0.02))))
+            st.caption(
+                f"Embedding this knowledge base: {_kb_tokens:,} "
+                f"tokens · about "
+                f"${_kb_tokens / 1_000_000 * _emb_price_now:.4f} "
+                f"at the embedding price below")
     else:
         st.warning("Knowledge base not built yet.")
     st.write("OpenAI key:", "loaded" if api_key else "not found")
@@ -323,6 +390,19 @@ with st.sidebar:
         step=0.01, format="%.4f", key="embedding_price",
         help="The price is an input, never a hidden constant. It "
              "drives every cost figure in this app.")
+    chat_in_price = st.number_input(
+        "Chat model input price (USD per 1M tokens)", min_value=0.0,
+        value=0.15, step=0.01, format="%.4f", key="chat_input_price",
+        help="What the explanation model charges for the text it "
+             "reads: the question plus the policy passages sent "
+             "with it. The gpt-4o-mini list price is the starting "
+             "value; change it any time.")
+    chat_out_price = st.number_input(
+        "Chat model output price (USD per 1M tokens)", min_value=0.0,
+        value=0.60, step=0.01, format="%.4f", key="chat_output_price",
+        help="What the explanation model charges for the answer it "
+             "writes. The gpt-4o-mini list price is the starting "
+             "value.")
     st.caption("Built with the pipeline in this repository: page-aware "
                "extraction, chunking, text-embedding-3-small, ChromaDB, "
                "gpt-4o-mini explanations grounded only in the chunks "
@@ -343,25 +423,46 @@ def show_loader(slot, text: str):
 def run_retrieval(complaint: str):
     from openai import OpenAI
     client = OpenAI(api_key=api_key)
+    captured: dict = {}
 
     def embed_fn(text: str):
         resp = client.embeddings.create(model=config.EMBEDDING_MODEL,
                                         input=[text])
+        usage = getattr(resp, "usage", None)
+        tokens = getattr(usage, "total_tokens", None)
+        captured["query_tokens"] = (tokens if tokens is not None
+                                    else count_tokens(text))
         return resp.data[0].embedding
 
     result = retriever.retrieve(
         collection, embed_fn, complaint,
         threshold=threshold_pct / 100.0, k_mode=k_mode,
         fixed_k=int(fixed_k), max_k=int(max_k))
-    return client, result
+    return client, result, captured.get("query_tokens")
 
 
-def stream_explanation(client, complaint: str, used: list[dict]) -> str:
+def stream_explanation(client, complaint: str, used: list[dict]):
+    """Stream the explanation and return (text, usage). The usage
+    rides on the stream's final chunk (include_usage), so every
+    answer can carry its real token cost."""
     stream = client.chat.completions.create(
         model=config.CHAT_MODEL, temperature=0.2, stream=True,
+        stream_options={"include_usage": True},
         messages=explain.build_messages(complaint, used))
-    return st.write_stream(
-        chunk.choices[0].delta.content or "" for chunk in stream)
+    usage: dict = {}
+
+    def _pieces():
+        for chunk in stream:
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage is not None:
+                usage.update({
+                    "prompt_tokens": chunk_usage.prompt_tokens,
+                    "completion_tokens": chunk_usage.completion_tokens,
+                    "total_tokens": chunk_usage.total_tokens})
+            if chunk.choices:
+                yield chunk.choices[0].delta.content or ""
+
+    return st.write_stream(_pieces()), usage
 
 
 def show_matches(used: list[dict], key_prefix: str = ""):
@@ -433,20 +534,24 @@ with tab_home:
             try:
                 show_loader(slot, "Kat Intelligence is reading "
                                   "Asteron's policies…")
-                client, result = run_retrieval(text)
+                client, result, query_tokens = run_retrieval(text)
                 slot.empty()
-                _tokens = count_tokens(text)
-                st.session_state.search_cost = (
-                    {"tokens": _tokens,
-                     "cost": _tokens / 1_000_000 * price}
-                    if _tokens is not None else None)
                 st.session_state.result = result
                 st.session_state.explanation = ""
+                usage = {}
                 if result["grounded"]:
-                    st.session_state.explanation = stream_explanation(
-                        client, text, result["used"])
-                else:
-                    st.session_state.result = result
+                    st.session_state.explanation, usage = \
+                        stream_explanation(client, text, result["used"])
+                _chat_tokens = usage.get(
+                    "total_tokens",
+                    usage.get("prompt_tokens", 0)
+                    + usage.get("completion_tokens", 0)) if usage else 0
+                st.session_state.search_cost = {
+                    "tokens": (query_tokens or 0) + _chat_tokens,
+                    "cost": exchange_cost_usd(
+                        query_tokens, usage, price, chat_in_price,
+                        chat_out_price),
+                    "answered": bool(usage)}
             except Exception as exc:
                 slot.empty()
                 st.error(f"Something went wrong: {exc}")
@@ -457,10 +562,13 @@ with tab_home:
         if st.session_state.search_cost:
             _sc = st.session_state.search_cost
             st.caption(
-                f"This search embedded your complaint ({_sc['tokens']} "
-                f"tokens, about ${_sc['cost']:.6f} at ${price:.2f} per "
-                f"1M tokens) with {config.EMBEDDING_MODEL}. The "
-                f"explanation was written by {config.CHAT_MODEL}.")
+                f"This search used {_sc['tokens']:,} tokens and "
+                f"cost about ${_sc['cost']:.6f}: the complaint "
+                f"embedded with {config.EMBEDDING_MODEL}"
+                + (f" and the explanation written by "
+                   f"{config.CHAT_MODEL}."
+                   if _sc["answered"] else
+                   ", and no explanation was generated."))
         if result["grounded"]:
             used = result["used"]
             top_pct = round(used[0]["similarity"] * 100, 1)
@@ -562,6 +670,9 @@ with tab_chat:
             if msg["role"] == "assistant" and msg.get("used"):
                 st.markdown("**Sources**")
                 show_matches(msg["used"], key_prefix=f"chat{idx}_")
+            if msg["role"] == "assistant":
+                chat_cost_caption(msg.get("tokens"), price,
+                                  chat_in_price, chat_out_price)
     if st.session_state.chat_messages:
         if st.button("Clear conversation", key="clear_chat"):
             st.session_state.chat_messages = []
@@ -577,6 +688,7 @@ with tab_chat:
         assistant_idx = len(st.session_state.chat_messages)
         with st.chat_message("user"):
             st.markdown(new_text)
+        tokens = None
         with st.chat_message("assistant"):
             if collection is None:
                 answer = ("The knowledge base is not built yet, so I "
@@ -593,19 +705,28 @@ with tab_chat:
             else:
                 slot = st.empty()
                 show_loader(slot, "Reading the policies…")
-                client, result = run_retrieval(new_text)
+                client, result, query_tokens = run_retrieval(new_text)
                 slot.empty()
                 used = result["used"]
+                tokens = {"query": query_tokens or 0,
+                          "prompt": 0, "completion": 0}
                 if used:
-                    answer = stream_explanation(client, new_text, used)
+                    answer, usage = stream_explanation(
+                        client, new_text, used)
+                    tokens["prompt"] = usage.get("prompt_tokens", 0)
+                    tokens["completion"] = usage.get(
+                        "completion_tokens", 0)
                     st.markdown("**Sources**")
                     show_matches(used,
                                  key_prefix=f"chat{assistant_idx}_")
                 else:
                     answer = config.NO_MATCH_MESSAGE
                     st.markdown(answer)
+                chat_cost_caption(tokens, price, chat_in_price,
+                                  chat_out_price)
         st.session_state.chat_messages.append(
-            {"role": "assistant", "content": answer, "used": used})
+            {"role": "assistant", "content": answer, "used": used,
+             "tokens": tokens})
         st.rerun()
 
 # ---------------------------------------------------------------- policies
@@ -773,7 +894,7 @@ with tab_lab:
             st.error("Needs the knowledge base and an OpenAI key.")
         else:
             try:
-                client, result = run_retrieval(lab_text)
+                client, result, _query_tokens = run_retrieval(lab_text)
                 st.markdown("**Stage 1 · Retrieval** — every candidate, "
                             "best first. ✓ = used after the threshold "
                             "and K filters.")
