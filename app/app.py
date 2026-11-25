@@ -19,6 +19,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 APP_DIR = Path(__file__).resolve().parent
 ENGINE_DIR = APP_DIR / "engine"
@@ -83,7 +84,8 @@ def chat_cost_caption(tokens, emb_price, in_price, out_price):
         q, {"prompt_tokens": p, "completion_tokens": c},
         emb_price, in_price, out_price)
     if p or c:
-        st.caption(f"Search and answer: {q + p + c:,} tokens · "
+        st.caption(f"Search and answer: {q + p + c:,} tokens "
+                   f"({p:,} in · {c:,} out · {q:,} search) · "
                    f"about ${cost:.6f}")
     else:
         st.caption(f"Policy search: {q:,} tokens · "
@@ -319,14 +321,17 @@ BRAND_CSS = """
 [data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"]
   {background: #ffffff !important; color: #263238 !important;
   box-shadow: inset 0 -3px 0 #d98e2b;}
+/* There is no sidebar anywhere in this app: the header
+   carries the branding, Chat stays completely clean, and the
+   fine-tuning lives inside the Playground tab. */
 /* The chat box is the centrepiece of the Chat tab: a framed,
    tinted panel with a large input, not a bare text box. */
 [data-testid="stForm"] {border: 2px solid #d98e2b;
   border-radius: 14px; background: #fffaf1;
   padding: 14px 16px 6px;
   box-shadow: 0 2px 12px rgba(38, 50, 56, 0.10);}
-[data-testid="stForm"] [data-testid="stTextInput"] input
-  {font-size: 1.1rem; padding: 0.65rem 0.8rem;}
+[data-testid="stForm"] [data-testid="stTextArea"] textarea
+  {font-size: 1.1rem; line-height: 1.5; padding: 0.7rem 0.85rem;}
 /* How-it-was-built stepper: a row of icon circles joined by a
    line, the current step lit in brand amber, and a card under it
    with a fifteen-second progress bar while the walk auto-plays. */
@@ -447,100 +452,119 @@ def render_brand_header():
 
 render_brand_header()
 
-# ---------------------------------------------------------------- sidebar
-with st.sidebar:
-    _gk_uri = guardkat_logo_uri()
-    _brand_img = (f'<img src="{_gk_uri}" style="height:64px">'
-                  if _gk_uri else "")
-    st.markdown(
-        '<div style="text-align:center; padding:6px 0 2px 0">'
-        f'{_brand_img}'
-        '<div style="font-weight:700; font-size:17px; color:#263238; '
-        'margin-top:6px">GuardKat</div>'
-        '<div style="font-size:12px; letter-spacing:1.5px; '
-        'color:#607d8b">KAT INTELLIGENCE</div></div>',
-        unsafe_allow_html=True)
-    st.header("Retrieval controls")
-    st.write("Two independent filters. The threshold decides which "
-             "passages are relevant enough. K decides how many of "
-             "those passages are used. Both are always on, and "
-             "neither switches the other off.")
-    threshold_pct = st.slider(
-        "Relevance threshold (%)", 5, 95,
-        int(config.THRESHOLD_DEFAULT * 100),
-        help="Passages scoring below this are never used, whatever K "
-             "says. If nothing clears it, the complaint honestly "
-             "matches nothing.")
-    k_label = st.radio(
-        "How many passages (K)",
-        ["Dynamic — stop at the cliff", "Fixed number"], index=0,
-        help="Dynamic takes the passages above the threshold in "
-             "score order while their scores stay close together. It "
-             "stops at a cliff: a sudden drop of more than 8 points "
-             "between one passage and the next. It also stops at the "
-             "maximum below, whichever comes first. Example: scores "
-             "62, 58 and 41 are all above a 35 threshold, but only "
-             "62 and 58 are used, because 41 drops off a cliff. "
-             "Fixed uses exactly the fixed number below.")
-    k_mode = "dynamic" if k_label.startswith("Dynamic") else "fixed"
-    fixed_k = st.number_input(
-        "Passages to use (fixed K)", 1, 10, config.TOP_K_DEFAULT,
-        disabled=(k_mode == "dynamic"),
-        help="Exactly this many of the passages above the threshold "
-             "are used, best scores first. Enabled when Fixed number "
-             "is selected above.")
-    max_k = st.number_input(
-        "Maximum passages (dynamic K cap)", 1, 10,
-        config.MAX_K_DEFAULT, disabled=(k_mode == "fixed"),
-        help="The most passages dynamic can use. It may use fewer: "
-             "it stops early at a cliff, a sudden drop of more than "
-             "8 points between one passage and the next. Enabled "
-             "when Dynamic is selected above.")
-    st.divider()
-    if collection is not None:
-        st.metric("Policy chunks in the knowledge base",
-                  collection.count())
-        _kb_tokens = kb_embedding_tokens(collection,
-                                         collection.count())
-        if _kb_tokens:
-            _emb_price_now = float(st.session_state.get(
-                "embedding_price",
-                float(os.environ.get("EMBEDDING_PRICE_USD", 0.02))))
-            st.caption(
-                f"Embedding this knowledge base: {_kb_tokens:,} "
-                f"tokens · about "
-                f"${_kb_tokens / 1_000_000 * _emb_price_now:.4f} "
-                f"at the embedding price below")
-    else:
-        st.warning("Knowledge base not built yet.")
-    st.write("OpenAI key:", "loaded" if api_key else "not found")
-    st.divider()
-    st.markdown("**Models & cost**")
-    st.write(f"Embedding model: {config.EMBEDDING_MODEL}")
-    st.write(f"Explanation model: {config.CHAT_MODEL}")
-    price = st.number_input(
-        "Embedding price (USD per 1M tokens)", min_value=0.0,
-        value=float(os.environ.get("EMBEDDING_PRICE_USD", 0.02)),
-        step=0.01, format="%.4f", key="embedding_price",
-        help="The price is an input, never a hidden constant. It "
-             "drives every cost figure in this app.")
-    chat_in_price = st.number_input(
-        "Chat model input price (USD per 1M tokens)", min_value=0.0,
-        value=0.15, step=0.01, format="%.4f", key="chat_input_price",
-        help="What the explanation model charges for the text it "
-             "reads: the question plus the policy passages sent "
-             "with it. The gpt-4o-mini list price is the starting "
-             "value; change it any time.")
-    chat_out_price = st.number_input(
-        "Chat model output price (USD per 1M tokens)", min_value=0.0,
-        value=0.60, step=0.01, format="%.4f", key="chat_output_price",
-        help="What the explanation model charges for the answer it "
-             "writes. The gpt-4o-mini list price is the starting "
-             "value.")
-    st.caption("Built with the pipeline in this repository: page-aware "
-               "extraction, chunking, text-embedding-3-small, ChromaDB, "
-               "gpt-4o-mini explanations grounded only in the chunks "
-               "shown.")
+tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
+    ["💬 Chat", "📋 Playground", "📄 Policies", "✨ Magic",
+     "📝 Prompt"])
+
+# ---------------------------------------------------------------- fine-tuning
+# The tuning lives in the Playground tab, and there is no sidebar
+# anywhere: the header already carries the branding, and Chat
+# stays clean. This block renders into the Playground panel but
+# runs here, before the tab panels further down, because the
+# chat, the playground and the lab all read its values later in
+# the same run.
+with tab_home:
+    with st.container(border=True):
+        st.markdown("**🎛️ Fine-tuning** — the retrieval controls "
+                    "and the model prices. They drive every tab; "
+                    "they live here in the workbench.")
+        _ctl, _cost = st.columns(2)
+        with _cost:
+            st.markdown("**Models & cost**")
+            st.write(f"Embedding model: {config.EMBEDDING_MODEL}")
+            st.write(f"Explanation model: {config.CHAT_MODEL}")
+            price = st.number_input(
+                "Embedding price (USD per 1M tokens)", min_value=0.0,
+                value=float(os.environ.get("EMBEDDING_PRICE_USD",
+                                           0.02)),
+                step=0.01, format="%.4f", key="embedding_price",
+                help="The price is an input, never a hidden "
+                     "constant. It drives every cost figure in "
+                     "this app.")
+            if collection is not None:
+                _kb_tok_cost = kb_embedding_tokens(
+                    collection, collection.count())
+                if _kb_tok_cost:
+                    st.caption(
+                        f"Total cost: about "
+                        f"${_kb_tok_cost / 1_000_000 * price:.4f}")
+            chat_in_price = st.number_input(
+                "Chat model input price (USD per 1M tokens)",
+                min_value=0.0, value=0.15, step=0.01, format="%.4f",
+                key="chat_input_price",
+                help="What the explanation model charges for the "
+                     "text it reads: the question plus the policy "
+                     "passages sent with it. The gpt-4o-mini list "
+                     "price is the starting value; change it any "
+                     "time.")
+            chat_out_price = st.number_input(
+                "Chat model output price (USD per 1M tokens)",
+                min_value=0.0, value=0.60, step=0.01, format="%.4f",
+                key="chat_output_price",
+                help="What the explanation model charges for the "
+                     "answer it writes. The gpt-4o-mini list "
+                     "price is the starting value.")
+        with _ctl:
+            st.markdown("**Retrieval controls**")
+            st.write("Two independent filters. The threshold decides which "
+                     "passages are relevant enough. K decides how many of "
+                     "those passages are used. Both are always on, and "
+                     "neither switches the other off.")
+            threshold_pct = st.slider(
+                "Relevance threshold (%)", 5, 95,
+                int(config.THRESHOLD_DEFAULT * 100), key="threshold_pct",
+                help="Passages scoring below this are never used, whatever K "
+                     "says. If nothing clears it, the complaint honestly "
+                     "matches nothing.")
+            k_label = st.radio(
+                "How many passages (K)",
+                ["Dynamic — stop at the cliff", "Fixed number"], index=0,
+                key="k_mode_label",
+                help="Dynamic takes the passages above the threshold in "
+                     "score order while their scores stay close together. It "
+                     "stops at a cliff: a sudden drop of more than 8 points "
+                     "between one passage and the next. It also stops at the "
+                     "maximum below, whichever comes first. Example: scores "
+                     "62, 58 and 41 are all above a 35 threshold, but only "
+                     "62 and 58 are used, because 41 drops off a cliff. "
+                     "Fixed uses exactly the fixed number below.")
+            k_mode = "dynamic" if k_label.startswith("Dynamic") else "fixed"
+            fixed_k = st.number_input(
+                "Passages to use (fixed K)", 1, 10, config.TOP_K_DEFAULT,
+                key="fixed_k", disabled=(k_mode == "dynamic"),
+                help="Exactly this many of the passages above the threshold "
+                     "are used, best scores first. Enabled when Fixed number "
+                     "is selected above.")
+            max_k = st.number_input(
+                "Maximum passages (dynamic K cap)", 1, 10,
+                config.MAX_K_DEFAULT, key="max_k",
+                disabled=(k_mode == "fixed"),
+                help="The most passages dynamic can use. It may use fewer: "
+                     "it stops early at a cliff, a sudden drop of more than "
+                     "8 points between one passage and the next. Enabled "
+                     "when Dynamic is selected above.")
+        st.divider()
+        if collection is not None:
+            st.metric("Policy chunks in the knowledge base",
+                      collection.count())
+            _kb_tokens = kb_embedding_tokens(collection,
+                                             collection.count())
+            if _kb_tokens:
+                _emb_price_now = float(st.session_state.get(
+                    "embedding_price",
+                    float(os.environ.get("EMBEDDING_PRICE_USD", 0.02))))
+                st.caption(
+                    f"Embedding this knowledge base: {_kb_tokens:,} "
+                    f"tokens · about "
+                    f"${_kb_tokens / 1_000_000 * _emb_price_now:.4f} "
+                    f"at the current embedding price")
+        else:
+            st.warning("Knowledge base not built yet.")
+        st.write("OpenAI key:", "loaded" if api_key else "not found")
+        st.caption("Built with the pipeline in this repository: page-aware "
+                   "extraction, chunking, text-embedding-3-small, ChromaDB, "
+                   "gpt-4o-mini explanations grounded only in the chunks "
+                   "shown.")
 
 
 def show_loader(slot, text: str):
@@ -575,28 +599,41 @@ def run_retrieval(complaint: str):
     return client, result, captured.get("query_tokens")
 
 
-def stream_explanation(client, complaint: str, used: list[dict]):
-    """Stream the explanation and return (text, usage). The usage
-    rides on the stream's final chunk (include_usage), so every
-    answer can carry its real token cost."""
+def _answer_pieces(client, complaint: str, used: list[dict],
+                   usage: dict):
+    """Yield the explanation piece by piece, filling `usage` from
+    the stream's final chunk as it passes (include_usage), so
+    every answer can carry its real token cost."""
     stream = client.chat.completions.create(
         model=config.CHAT_MODEL, temperature=0.2, stream=True,
         stream_options={"include_usage": True},
         messages=explain.build_messages(complaint, used))
+    for chunk in stream:
+        chunk_usage = getattr(chunk, "usage", None)
+        if chunk_usage is not None:
+            usage.update({
+                "prompt_tokens": chunk_usage.prompt_tokens,
+                "completion_tokens": chunk_usage.completion_tokens,
+                "total_tokens": chunk_usage.total_tokens})
+        if chunk.choices:
+            yield chunk.choices[0].delta.content or ""
+
+
+def stream_explanation(client, complaint: str, used: list[dict]):
+    """Stream the explanation to the page and return (text,
+    usage)."""
     usage: dict = {}
+    return (st.write_stream(
+        _answer_pieces(client, complaint, used, usage)), usage)
 
-    def _pieces():
-        for chunk in stream:
-            chunk_usage = getattr(chunk, "usage", None)
-            if chunk_usage is not None:
-                usage.update({
-                    "prompt_tokens": chunk_usage.prompt_tokens,
-                    "completion_tokens": chunk_usage.completion_tokens,
-                    "total_tokens": chunk_usage.total_tokens})
-            if chunk.choices:
-                yield chunk.choices[0].delta.content or ""
 
-    return st.write_stream(_pieces()), usage
+def collect_explanation(client, complaint: str, used: list[dict]):
+    """The same streamed answer, gathered instead of shown, for
+    places that run inside a callback where nothing can be drawn
+    (the Prompt tab). Returns (text, usage)."""
+    usage: dict = {}
+    text = "".join(_answer_pieces(client, complaint, used, usage))
+    return text, usage
 
 
 @st.dialog("The policy page, with the passage highlighted",
@@ -644,10 +681,6 @@ def show_matches(used: list[dict], key_prefix: str = ""):
             _page_dialog(hit, rendered)
         st.divider()
 
-
-tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
-    ["💬 Chat", "📋 Playground", "📄 Policies", "✨ Magic",
-     "📝 Prompt"])
 
 # ---------------------------------------------------------------- home
 with tab_home:
@@ -700,6 +733,9 @@ with tab_home:
                     + usage.get("completion_tokens", 0)) if usage else 0
                 st.session_state.search_cost = {
                     "tokens": (query_tokens or 0) + _chat_tokens,
+                    "query": query_tokens or 0,
+                    "prompt": usage.get("prompt_tokens", 0),
+                    "completion": usage.get("completion_tokens", 0),
                     "cost": exchange_cost_usd(
                         query_tokens, usage, price, chat_in_price,
                         chat_out_price),
@@ -713,9 +749,13 @@ with tab_home:
     if result is not None:
         if st.session_state.search_cost:
             _sc = st.session_state.search_cost
+            _split = (f" ({_sc['prompt']:,} in · "
+                      f"{_sc['completion']:,} out · "
+                      f"{_sc['query']:,} search)"
+                      if _sc["answered"] else "")
             st.caption(
-                f"This search used {_sc['tokens']:,} tokens and "
-                f"cost about ${_sc['cost']:.6f}: the complaint "
+                f"This search used {_sc['tokens']:,} tokens{_split} "
+                f"and cost about ${_sc['cost']:.6f}: the complaint "
                 f"embedded with {config.EMBEDDING_MODEL}"
                 + (f" and the explanation written by "
                    f"{config.CHAT_MODEL}."
@@ -749,6 +789,20 @@ with tab_home:
 with tab_chat:
     chat_col, rail_col = st.columns([3, 1])
     with rail_col:
+        # The one route from Chat to the controls: a small
+        # button that clicks the real Playground tab, exactly
+        # as if it were clicked by hand. Streamlit has no
+        # switch-tab call of its own, so the button sits in a
+        # tiny frame and clicks the tab in the page around it.
+        components.html(
+            """
+            <button title="Adjust the retrieval and cost settings in the Playground"
+              onclick="window.parent.document.querySelectorAll('[data-testid=stTab]')[1].click()"
+              style="width:100%; font-family:'Source Sans Pro',sans-serif; font-size:14px; font-weight:600; padding:7px 10px; color:#263238; background:#fff8ec; border:1.5px solid #d98e2b; border-radius:8px; cursor:pointer">
+              ⚙️ Fine-tune
+            </button>
+            """,
+            height=42)
         with st.expander("What is this? About Kat Intelligence",
                          expanded=False):
             st.markdown("### What is this?")
@@ -818,13 +872,13 @@ with tab_chat:
                        "the pipeline steps first (see the How it was "
                        "built tab).")
         with st.form("chat_form", clear_on_submit=True):
-            ask_cols = st.columns([5, 1])
-            question = ask_cols[0].text_input(
+            question = st.text_area(
                 "Your question",
                 placeholder="Ask about an Asteron policy, or "
                             "describe a situation\u2026",
-                label_visibility="collapsed")
-            sent = ask_cols[1].form_submit_button(
+                label_visibility="collapsed", height=120)
+            ask_row = st.columns([5, 1])
+            sent = ask_row[1].form_submit_button(
                 "Ask", type="primary", use_container_width=True)
         st.caption("Answers come from the policies themselves, with "
                    "the sources under each answer. When no policy "
@@ -1261,12 +1315,19 @@ def _run_lab() -> None:
             "Needs the knowledge base and an OpenAI key.")
         return
     try:
-        client, result, _query_tokens = run_retrieval(text)
-        answer = (explain.explain(client, text, result["used"])
-                  if result["used"] else None)
+        client, result, query_tokens = run_retrieval(text)
+        answer = None
+        usage: dict = {}
+        if result["used"]:
+            answer, usage = collect_explanation(
+                client, text, result["used"])
         st.session_state["lab_result"] = {
             "text": text, "candidates": result["candidates"],
-            "used": result["used"], "answer": answer}
+            "used": result["used"], "answer": answer,
+            "tokens": {"query": query_tokens or 0,
+                       "prompt": usage.get("prompt_tokens", 0),
+                       "completion": usage.get("completion_tokens",
+                                              0)}}
     except Exception as exc:
         st.session_state["lab_result"] = None
         st.session_state["lab_error"] = (
@@ -1352,7 +1413,8 @@ with tab_lab:
                   key="lab_run", on_click=_run_lab, type="primary",
                   width="stretch")
     st.caption(f"Sent to {config.CHAT_MODEL} at temperature 0.2, "
-               "using the sidebar controls. When no passage passes "
+               "using the fine-tuning controls in the Playground. "
+               "When no passage passes "
                "the threshold and K filters, no prompt is built and "
                "the model is never called.")
     if st.session_state.get("lab_error"):
@@ -1379,6 +1441,8 @@ with tab_lab:
             st.info("No passages passed the filter, so no prompt "
                     "was built and the model was never called. "
                     "That restraint is deliberate.")
+        chat_cost_caption(_run.get("tokens"), price, chat_in_price,
+                          chat_out_price)
 
 # ---------------------------------------------------------------- footer
 st.divider()
