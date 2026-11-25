@@ -320,7 +320,7 @@ BRAND_CSS = """
   {font-size: 1.1rem; padding: 0.65rem 0.8rem;}
 /* How-it-was-built stepper: a row of icon circles joined by a
    line, the current step lit in brand amber, and a card under it
-   with a ten-second progress bar while the walk auto-plays. */
+   with a fifteen-second progress bar while the walk auto-plays. */
 .gk-steps {display: flex; margin: 0.8rem 0 0.4rem;}
 .gk-step {flex: 1; display: flex; flex-direction: column;
   align-items: center; position: relative;}
@@ -341,14 +341,17 @@ BRAND_CSS = """
 .gk-step.now .gk-lab {color: #263238;}
 .gk-card {border: 2px solid rgba(217, 142, 43, 0.55);
   border-radius: 14px; background: #fffaf1; padding: 20px 22px;
-  margin-top: 10px; text-align: center;}
+  margin-top: 10px; margin-bottom: 16px; text-align: center;}
 .gk-card-ico {font-size: 2.4rem; line-height: 1;}
 .gk-card-step {margin-top: 8px; font-size: 0.78rem;
-  letter-spacing: 1.5px; color: #b87718; font-weight: 700;}
+  letter-spacing: 1.5px; color: #b87718; font-weight: 700;
+  text-align: center;}
 .gk-card-title {font-size: 1.45rem; font-weight: 800;
-  color: #263238; margin-top: 2px;}
+  color: #263238; margin-top: 2px; text-align: center;}
 .gk-card-text {color: #455a64; max-width: 640px;
-  margin: 8px auto 0;}
+  margin: 8px auto 0; text-align: center;}
+.gk-card-cta {margin-top: 16px; font-size: 1.05rem;
+  font-weight: 700; color: #b87718; text-align: center;}
 .gk-tiles {display: flex; gap: 12px; justify-content: center;
   margin-top: 16px; flex-wrap: wrap;}
 .gk-tile {background: #ffffff;
@@ -359,7 +362,7 @@ BRAND_CSS = """
 .gk-bar {height: 5px; background: rgba(38, 50, 56, 0.08);
   border-radius: 3px; overflow: hidden; margin-top: 16px;}
 .gk-bar > div {height: 100%; background: #d98e2b;
-  animation: gkfill 10s linear forwards;}
+  animation: gkfill 15s linear forwards;}
 @keyframes gkfill {from {width: 0;} to {width: 100%;}}
 </style>
 """
@@ -942,14 +945,17 @@ def _built_steps(stats: dict) -> list[dict]:
          "tiles": [(str(chunks), "vectors stored"),
                    ("1", "collection"),
                    ("~2 MB", "whole knowledge base")]},
-        {"icon": "💬", "label": "Answer",
-         "title": "Answer, with the exact page",
-         "text": "A message is turned into numbers the same way and "
-                 "matched against the store. The best passages go to "
-                 "the chat model, which may only use them, and the "
-                 "policy opens on the exact page with the passage "
-                 "highlighted. If nothing matches, the answer "
-                 "honestly says so.",
+        {"icon": "💬", "label": "RAG",
+         "title": "RAG — the answer, with the exact page",
+         "text": "This last step has a name: RAG, retrieval-augmented "
+                 "generation. A message is turned into numbers the "
+                 "same way and matched against the store. The best "
+                 "passages go to the chat model, which may only use "
+                 "them, and the policy opens on the exact page with "
+                 "the passage highlighted. If nothing matches, the "
+                 "answer honestly says so.",
+         "cta": "👆 Now see it happen live — open the 📝 Prompt tab "
+                "and run a message through the prompt yourself.",
          "tiles": [(f"{int(config.THRESHOLD_DEFAULT * 100)}%",
                     "minimum match to count"),
                    (str(config.MAX_K_DEFAULT), "passages at most"),
@@ -960,6 +966,7 @@ def _built_steps(stats: dict) -> list[dict]:
 def _built_nav(target: int) -> None:
     st.session_state["built_step"] = target
     st.session_state["built_nav"] = True
+    st.session_state["built_rag_held"] = False
 
 
 def _built_toggle_pause() -> None:
@@ -968,10 +975,10 @@ def _built_toggle_pause() -> None:
     st.session_state["built_nav"] = True
 
 
-@st.fragment(run_every=timedelta(seconds=10))
+@st.fragment(run_every=timedelta(seconds=15))
 def built_stepper() -> None:
     """The auto-playing walk through the seven steps. The fragment
-    re-runs every ten seconds and advances one step, looping for
+    re-runs every fifteen seconds and advances one step, looping for
     ever; the buttons set built_nav so a click never also triggers
     an advance on the same run."""
     steps = _built_steps(kb_stats())
@@ -982,8 +989,15 @@ def built_stepper() -> None:
     elif st.session_state.pop("built_nav", False):
         pass
     elif not st.session_state.get("built_paused", False):
-        st.session_state["built_step"] = (
-            st.session_state["built_step"] + 1) % total
+        _cur = st.session_state["built_step"] % total
+        if (_cur == total - 1
+                and not st.session_state.get("built_rag_held")):
+            # The RAG step stays twice as long as the others: hold
+            # it for one extra interval before the loop restarts.
+            st.session_state["built_rag_held"] = True
+        else:
+            st.session_state["built_rag_held"] = False
+            st.session_state["built_step"] = (_cur + 1) % total
     idx = st.session_state["built_step"] % total
     step = steps[idx]
     paused = st.session_state.get("built_paused", False)
@@ -1000,7 +1014,15 @@ def built_stepper() -> None:
         f'<div class="gk-tile"><div class="gk-num">{num}</div>'
         f'<div class="gk-cap">{cap}</div></div>'
         for num, cap in step["tiles"])
-    bar = "" if paused else '<div class="gk-bar"><div></div></div>'
+    cta = (f'<div class="gk-card-cta">{step["cta"]}</div>'
+           if step.get("cta") else "")
+    if paused:
+        bar = ""
+    elif idx == total - 1:
+        bar = ('<div class="gk-bar"><div style="animation-duration:'
+               '30s"></div></div>')
+    else:
+        bar = '<div class="gk-bar"><div></div></div>'
     st.markdown(
         f'<div class="gk-card"><div class="gk-card-ico">'
         f'{step["icon"]}</div>'
@@ -1008,7 +1030,7 @@ def built_stepper() -> None:
         f'{step["label"]}</div>'
         f'<div class="gk-card-title">{step["title"]}</div>'
         f'<p class="gk-card-text">{step["text"]}</p>'
-        f'<div class="gk-tiles">{tiles}</div>{bar}</div>',
+        f'{cta}<div class="gk-tiles">{tiles}</div>{bar}</div>',
         unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     c1.button("← Previous", key="built_prev", width="stretch",
@@ -1023,7 +1045,7 @@ with tab_pipeline:
     st.subheader("How the knowledge base was built")
     st.write("The whole system, in seven steps, from the documents "
              "arriving to an answer opening the exact policy page. "
-             "It plays on its own, one step every ten seconds, or "
+             "It plays on its own, one step every fifteen seconds, or "
              "step through it yourself with the buttons.")
     built_stepper()
     st.caption("In production this same design swaps the local "
