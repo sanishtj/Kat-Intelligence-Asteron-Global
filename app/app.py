@@ -1133,6 +1133,12 @@ with tab_chat:
         st.caption("Answers come from the policies themselves, with "
                    "the sources under each answer. When no policy "
                    "covers it, the chat says so instead of guessing.")
+        if sent and not question.strip():
+            # Lesson 19 audit, Q10 (26 Nov 2026): an empty submit
+            # used to do nothing at all, which reads as a broken
+            # app. Say so, plainly, and let them type the question.
+            st.warning("Please enter a question, or describe the "
+                       "situation you want checked.")
         new_text = (question if sent else None) or \
             st.session_state.chat_pending
         if new_text:

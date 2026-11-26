@@ -73,7 +73,14 @@ SYSTEM_PROMPT = (
     "the codes of the passages your answer actually rests on, "
     "and no others. If none of the passages really answer the "
     "message, make that line your whole reply: USED: none, "
-    "with nothing before or after it. Keep it short: a few "
+    "with nothing before or after it. Judge coverage by the "
+    "topic of the message, not by loose relatedness: a passage "
+    "that only explains how to report or raise an issue does "
+    "not cover a question about a topic no passage addresses, "
+    "so in that case your whole reply is USED: none even when "
+    "reporting passages were retrieved. When a passage does "
+    "address the topic, reporting steps from the passages may "
+    "be part of the answer. Keep it short: a few "
     "sentences per policy at most."
 )
 
