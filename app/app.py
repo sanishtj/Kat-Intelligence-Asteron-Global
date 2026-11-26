@@ -790,6 +790,7 @@ def show_all_matches(returned: list[dict], used_ids: set):
             ("#2e7d32", "#e8f5e9", "USED IN THE ANSWER")
             if is_used else
             ("#9e9e9e", "#f5f5f5", "RETURNED, NOT USED"))
+        pct = round(hit["similarity"] * 100, 1)
         st.markdown(
             f'<div style="border-left:4px solid {band}; '
             f'background:{tint}; padding:6px 10px; '
@@ -798,7 +799,8 @@ def show_all_matches(returned: list[dict], used_ids: set):
             f"{html.escape(hit['section'])} · page "
             f"{hit['page_start']}<br>"
             f'<span style="color:{band}; font-weight:700; '
-            f'font-size:0.85em">{tag}</span></div>',
+            f'font-size:0.85em">{tag} · {pct}% match · '
+            f"Chunk ID: {html.escape(hit['chunk_id'])}</span></div>",
             unsafe_allow_html=True)
         with st.expander("Read the passage"):
             st.write(hit["text"])
