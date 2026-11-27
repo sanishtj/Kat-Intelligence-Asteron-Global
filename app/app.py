@@ -132,6 +132,57 @@ def get_api_key() -> str | None:
     return None
 
 
+def _secret_or_env(name: str) -> str | None:
+    try:
+        if name in st.secrets:
+            value = str(st.secrets[name]).strip()
+            if value:
+                return value
+    except Exception:
+        pass
+    value = os.environ.get(name, "").strip()
+    return value or None
+
+
+def get_azure_settings() -> dict | None:
+    """Azure OpenAI settings, when the app is set up for Azure
+    (for example an Azure AI Foundry resource). When the
+    endpoint and key secrets are present, the app talks to
+    Azure instead of api.openai.com, and the deployment names
+    are used as the model arguments. The embedding deployment
+    must be a deployment of text-embedding-3-small: the stored
+    vectors were built with that model, and a different
+    embedding model would not match them."""
+    endpoint = _secret_or_env("AZURE_OPENAI_ENDPOINT")
+    key = _secret_or_env("AZURE_OPENAI_API_KEY")
+    if not endpoint or not key:
+        return None
+    return {
+        "endpoint": endpoint,
+        "api_key": key,
+        "api_version": _secret_or_env("AZURE_OPENAI_API_VERSION")
+        or "2024-10-21",
+        "chat_deployment": _secret_or_env("AZURE_CHAT_DEPLOYMENT")
+        or config.CHAT_MODEL,
+        "embedding_deployment":
+            _secret_or_env("AZURE_EMBEDDING_DEPLOYMENT")
+            or config.EMBEDDING_MODEL,
+    }
+
+
+def build_client():
+    """Build the AI client in one place: Azure OpenAI when the
+    Azure secrets are set, plain OpenAI otherwise."""
+    azure = get_azure_settings()
+    if azure is not None:
+        from openai import AzureOpenAI
+        return AzureOpenAI(azure_endpoint=azure["endpoint"],
+                           api_key=azure["api_key"],
+                           api_version=azure["api_version"])
+    from openai import OpenAI
+    return OpenAI(api_key=get_api_key())
+
+
 @st.cache_resource
 def get_collection():
     try:
@@ -253,6 +304,18 @@ for key, default in (("complaint", ""), ("result", None),
 
 collection = get_collection()
 api_key = get_api_key()
+azure_settings = get_azure_settings()
+if azure_settings is not None:
+    # Azure mode: the deployment names become the model names
+    # everywhere the app asks for a model (retrieval, the
+    # streamed answer, the lab), and the Azure key counts as
+    # the configured key for the app's checks. The key value
+    # itself is never shown anywhere.
+    config.CHAT_MODEL = azure_settings["chat_deployment"]
+    config.EMBEDDING_MODEL = azure_settings["embedding_deployment"]
+    if api_key is None:
+        api_key = azure_settings["api_key"]
+
 
 # ---------------------------------------------------------------- header
 BRAND_CSS = """
@@ -582,8 +645,7 @@ def show_loader(slot, text: str):
 
 
 def run_retrieval(complaint: str):
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+    client = build_client()
     captured: dict = {}
 
     def embed_fn(text: str):
