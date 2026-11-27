@@ -882,10 +882,17 @@ with tab_home:
         else:
             slot = st.empty()
             try:
-                show_loader(slot, "Kat Intelligence is reading "
-                                  "Asteron's policies…")
+                # Staged loader text, as in Chat: the line under
+                # the loader names the step the app is on.
+                show_loader(slot, "Searching the policy "
+                                  "library…")
                 client, result, query_tokens = run_retrieval(text)
-                slot.empty()
+                if result["grounded"]:
+                    show_loader(slot, "Writing the explanation "
+                                      "from the passages "
+                                      "found…")
+                else:
+                    slot.empty()
                 st.session_state.result = result
                 st.session_state.explanation = ""
                 usage = {}
@@ -901,6 +908,7 @@ with tab_home:
                      st.session_state.sources,
                      st.session_state.not_covered) = \
                         collect_explanation(client, text, result["used"])
+                slot.empty()
                 _chat_tokens = usage.get(
                     "total_tokens",
                     usage.get("prompt_tokens", 0)
@@ -1167,7 +1175,12 @@ with tab_chat:
                     st.markdown(answer)
                 else:
                     slot = st.empty()
-                    show_loader(slot, "Reading the policies\u2026")
+                    # Staged loader text (Lesson 19 micro-feedback):
+                    # the line under the loader names the step the
+                    # app is on, first the search, then the writing,
+                    # so a wait never reads as a hang.
+                    show_loader(slot, "Searching the policy "
+                                      "library\u2026")
                     # The conversation so far: the last four
                     # exchanges ride into the answer prompt as
                     # context (never as a source of facts), and
@@ -1185,8 +1198,12 @@ with tab_chat:
                                    if prev_q else new_text)
                     client, result, query_tokens = \
                         run_retrieval(search_text)
-                    slot.empty()
                     used = result["used"]
+                    if used:
+                        show_loader(slot, "Writing the answer from "
+                                          "the passages found\u2026")
+                    else:
+                        slot.empty()
                     tokens = {"query": query_tokens or 0,
                               "prompt": 0, "completion": 0}
                     not_covered = False
@@ -1195,6 +1212,7 @@ with tab_chat:
                         answer, usage, sources, not_covered = \
                             stream_explanation(
                                 client, new_text, used, history)
+                        slot.empty()
                         tokens["prompt"] = usage.get(
                             "prompt_tokens", 0)
                         tokens["completion"] = usage.get(

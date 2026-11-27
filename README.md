@@ -89,7 +89,8 @@ Proof of concept, built in phases: corpus and pipeline complete;
 independent threshold and K filters (fixed K or dynamic K), the grounded
 explanation and the highlighted page preview built; the app is deployed
 on Streamlit Community Cloud, and a ten-question stress test audit was
-run against the live app on 26 Nov 2026 (results below).
+run against the live app on 26 Nov 2026 (results below). The
+assignment's exact ten-question test set was completed the same day.
 
 ## Stress test audit (26 Nov 2026)
 
@@ -165,6 +166,46 @@ plus 1 grey-zone question.
   only on the passages it cites. The grounding prompt has since
   been tightened to judge coverage by the topic of the question.
 
+### The assignment test set (26 Nov 2026)
+
+The assignment asks for a specific mix of ten questions: 3 direct,
+2 paraphrased, 1 misspelled, 2 needing information from different
+sections, and 2 irrelevant. The audit above covers most of it; three
+more questions were run on the live app the same day, each in a
+fresh session at the same defaults, to complete the set.
+
+| Assignment slot | Question | Result |
+|---|---|---|
+| Direct (3) | Audit Q1, Q2 and Q3 above | Pass |
+| Paraphrased (2) | Audit Q4 and Q5 above | Pass |
+| Misspelled (1) | Can I accept a vendoor's paid holliday if they are bidding for our contarct? | Pass |
+| Different sections (2) | The hamper and trip question, and the manager and customer data question below | Pass |
+| Irrelevant (2) | Audit Q8 and Q9 above | Correctly rejected |
+
+What the three extra runs showed:
+
+- Misspelled: three misspellings (vendoor, holliday, contarct) did
+  not break retrieval. The answer was the same decline-and-report
+  answer as audit Q1, resting on Anti-Bribery and Corruption Policy
+  [11. Worked examples · page 2]. 1 chunk returned, 1 used.
+- Different sections, one policy: a 40 dollar hamper sent to the
+  team, and a paid weekend trip offered by a vendor. The hamper may
+  be accepted (unsolicited, under the USD 50 limit, not connected to
+  a pending decision) and recorded in the gifts register; the trip
+  must be declined and reported to the Ethics and Compliance Office
+  within two business days. The answer draws on sections 3, 4 and 7
+  of the Anti-Bribery and Corruption Policy, resting on
+  [11. Worked examples · page 2]. 1 chunk returned, 1 used.
+- Different sections, two policies: a manager asking for customer
+  data to be sent to his personal email, and telling the employee
+  not to tell anyone. The answer rests on four passages across two
+  policies: Data Protection and Privacy Policy [4. Handling
+  customer data · page 1], [10. Consequences · page 2] and
+  [11. Worked examples · page 2], and Information Security and
+  Acceptable Use Policy [4. Company data stays on company
+  systems · page 1]: decline, use the approved route, and report
+  it rather than stay silent. 5 chunks returned, 4 used.
+
 ### Findings
 
 - 9 of the 10 audit questions behaved exactly as designed. The
@@ -182,3 +223,7 @@ plus 1 grey-zone question.
   nothing irrelevant was answered, and every answerable question,
   including the two vague ones, was answered from the right policy.
 - No error message appeared anywhere during the run.
+- The assignment's exact test set is complete: the three extra runs
+  (one misspelled, two needing more than one section or policy) all
+  passed, and the misspelled question retrieved as accurately as
+  its correctly spelled twin in audit Q1.
