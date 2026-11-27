@@ -6,7 +6,8 @@ policies that match it, explains why, and opens the policy PDF at
 the exact page, with the passage highlighted. The Fine-tune tab
 holds the retrieval controls and the model prices.
 
-Tabs: Chat - Fine-tune - Policies - Magic - Prompt.
+Tabs: Chat - Fine-tune - Policies - Magic - Prompt -
+Kat Intelligence.
 """
 
 import base64
@@ -33,6 +34,7 @@ import explain  # noqa: E402
 import highlight  # noqa: E402
 import retriever  # noqa: E402
 from samples import SAMPLES  # noqa: E402
+from cases import CASES  # noqa: E402
 
 try:
     import tiktoken
@@ -298,7 +300,8 @@ for key, default in (("complaint", ""), ("result", None),
                      ("search_cost", None), ("policy_preview", None),
                      ("chat_messages", []), ("chat_pending", None),
                      ("chat_view", None),
-                     ("lab_result", None), ("lab_error", None)):
+                     ("lab_result", None), ("lab_error", None),
+                     ("case_selected", None), ("case_results", {})):
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -517,9 +520,10 @@ def render_brand_header():
 
 render_brand_header()
 
-tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab = st.tabs(
-    ["💬 Chat", "⚙️ Fine-tune", "📄 Policies", "✨ Magic",
-     "📝 Prompt"])
+tab_chat, tab_home, tab_policies, tab_pipeline, tab_lab, \
+    tab_cases = st.tabs(
+        ["💬 Chat", "⚙️ Fine-tune", "📄 Policies", "✨ Magic",
+         "📝 Prompt", "🛡️ Kat Intelligence"])
 
 # ---------------------------------------------------------------- fine-tuning
 # The tuning lives in the Fine-tune tab, and there is no sidebar
@@ -1865,6 +1869,93 @@ with tab_lab:
                     "That restraint is deliberate.")
         chat_cost_caption(_run.get("tokens"), price, chat_in_price,
                           chat_out_price)
+
+# ---------------------------------------------------------------- cases
+with tab_cases:
+    st.subheader("Kat Intelligence on a reported case")
+    st.write("This is the GuardKat use case. When a case is "
+             "reported, the person reviewing it needs the company "
+             "policies that bear on it, without digging through "
+             "folders to find them. Pick a sample case below: the "
+             "case is searched against Asteron's policies, and the "
+             "ones that match are listed beside it, on the exact "
+             "page.")
+    # Two rows of four case buttons. A click selects the case;
+    # the search runs once per case and the outcome is kept in
+    # session state, so re-clicks and reruns cost nothing.
+    for _row_start in (0, 4):
+        _btn_cols = st.columns(4)
+        for _j, _case in enumerate(CASES[_row_start:_row_start + 4]):
+            if _btn_cols[_j].button(
+                    _case["title"], key=f"case_btn_{_case['id']}",
+                    use_container_width=True):
+                st.session_state.case_selected = _case["id"]
+    _case = next((c for c in CASES
+                  if c["id"] == st.session_state.case_selected),
+                 None)
+    if _case is None:
+        st.info("Pick a case above to see the policies that "
+                "match it.")
+    else:
+        if _case["id"] not in st.session_state.case_results:
+            if collection is None:
+                st.error("The knowledge base is not built yet.")
+            elif not api_key:
+                st.error("No OpenAI key is configured, so the case "
+                         "cannot be searched.")
+            else:
+                _slot = st.empty()
+                try:
+                    show_loader(_slot, "Searching the policy "
+                                       "library…")
+                    _client, _result, _qt = run_retrieval(
+                        _case["text"])
+                    _answer, _sources, _not_covered = "", [], False
+                    if _result["grounded"]:
+                        show_loader(_slot, "Writing the summary "
+                                           "from the passages "
+                                           "found…")
+                        (_answer, _usage, _sources,
+                         _not_covered) = collect_explanation(
+                             _client, _case["text"], _result["used"])
+                    _slot.empty()
+                    st.session_state.case_results[_case["id"]] = {
+                        "grounded": _result["grounded"],
+                        "used": _result["used"],
+                        "answer": _answer,
+                        "sources": _sources,
+                        "not_covered": _not_covered}
+                except Exception as exc:
+                    _slot.empty()
+                    st.error(f"Something went wrong: {exc}")
+        _outcome = st.session_state.case_results.get(_case["id"])
+        if _outcome is not None:
+            _case_col, _match_col = st.columns(2)
+            with _case_col:
+                with st.container(border=True):
+                    st.markdown(f"**{_case['title']}**")
+                    st.caption("Reported by "
+                               f"{_case['reported_by']}")
+                    st.write(_case["text"])
+            with _match_col:
+                if not _outcome["grounded"]:
+                    st.warning(config.NO_MATCH_MESSAGE)
+                elif _outcome["not_covered"]:
+                    st.warning(config.NOT_COVERED_MESSAGE)
+                    show_checked_passages(_outcome["used"])
+                else:
+                    if _outcome["answer"]:
+                        st.markdown(_outcome["answer"])
+                    st.markdown("**Policies that match this case**")
+                    _by_policy: dict = {}
+                    for _hit in _outcome["sources"]:
+                        _by_policy.setdefault(
+                            _hit["title"], []).append(_hit)
+                    for _title, _hits in _by_policy.items():
+                        st.markdown(f"*{_title}*")
+                        show_references(
+                            _hits,
+                            key_prefix=f"case_{_case['id']}_")
 
 # ---------------------------------------------------------------- footer
 st.divider()
