@@ -120,16 +120,16 @@ CASES = [
         "title": "Shifts Cut After a Report",
         "reported_by": "a plant operator, Manufacturing",
         "text": (
-            "Last month I reported a fault with a machine guard "
-            "through the reporting channel, and the machine was "
-            "taken out of use for two days while it was fixed. "
-            "Since then my overtime shifts have been removed and "
-            "I have been moved to the least popular duties on the "
-            "rota, with no explanation from my supervisor. Nothing "
-            "like this happened before I made the report. I am "
-            "reporting this because I think the two things are "
-            "connected, and it will put others off raising safety "
-            "problems."
+            "Two weeks ago I raised a concern in good faith about "
+            "a fault with a machine guard, through the reporting "
+            "channel, and the machine was taken out of use while "
+            "it was fixed. Since then my overtime shifts have been "
+            "removed and I have been moved to less desirable "
+            "duties, with no explanation from my supervisor. This "
+            "is negative treatment connected to my report, and I "
+            "believe it is retaliation for raising the concern. "
+            "Nothing like this happened before I reported, and it "
+            "will put others off speaking up."
         ),
     },
 ]
