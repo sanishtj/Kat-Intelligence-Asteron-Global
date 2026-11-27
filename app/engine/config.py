@@ -15,6 +15,16 @@ COLLECTION_NAME = "asteron_policies"
 EMBEDDING_MODEL = "text-embedding-3-small"
 CHAT_MODEL = "gpt-4o-mini"
 
+
+def chat_temperature(model: str):
+    """The temperature to send with a chat call, or None to
+    send none. GPT-5 models accept only their default
+    temperature and reject a sent one, so for them the app
+    sends nothing and the model uses its default."""
+    if model.strip().lower().startswith("gpt-5"):
+        return None
+    return 0.2
+
 # Retrieval defaults (similarity is a fraction: 0.35 means 35%).
 # Two independent filters, both always on: the threshold decides which
 # chunks are relevant enough, K decides how many of those are used.

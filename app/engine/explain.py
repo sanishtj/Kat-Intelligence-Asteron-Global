@@ -99,9 +99,12 @@ def explain(client, complaint: str,
     """
     if not used:
         return None
+    _temperature = config.chat_temperature(config.CHAT_MODEL)
+    _extra = ({} if _temperature is None
+              else {"temperature": _temperature})
     response = client.chat.completions.create(
-        model=config.CHAT_MODEL, temperature=0.2,
-        messages=build_messages(complaint, used))
+        model=config.CHAT_MODEL,
+        messages=build_messages(complaint, used), **_extra)
     content = response.choices[0].message.content
     answer, indices = parse_used_marker(content)
     if indices is None:

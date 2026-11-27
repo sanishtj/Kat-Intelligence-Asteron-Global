@@ -161,7 +161,7 @@ def get_azure_settings() -> dict | None:
         "endpoint": endpoint,
         "api_key": key,
         "api_version": _secret_or_env("AZURE_OPENAI_API_VERSION")
-        or "2024-10-21",
+        or "2025-04-01-preview",
         "chat_deployment": _secret_or_env("AZURE_CHAT_DEPLOYMENT")
         or config.CHAT_MODEL,
         "embedding_deployment":
@@ -678,10 +678,14 @@ def _answer_pieces(client, complaint: str, used: list[dict],
     if state is None:
         state = {}
     state["raw"] = ""
+    _temperature = config.chat_temperature(config.CHAT_MODEL)
+    _extra = ({} if _temperature is None
+              else {"temperature": _temperature})
     stream = client.chat.completions.create(
-        model=config.CHAT_MODEL, temperature=0.2, stream=True,
+        model=config.CHAT_MODEL, stream=True,
         stream_options={"include_usage": True},
-        messages=explain.build_messages(complaint, used, history))
+        messages=explain.build_messages(complaint, used, history),
+        **_extra)
     import re as _re
 
     holdback = 24
@@ -1683,7 +1687,10 @@ with tab_pipeline:
          int(config.DYNAMIC_DROP_POINTS * 100)),
         ("Candidates fetched before filtering", config.CANDIDATE_POOL),
         ("Explanation model", config.CHAT_MODEL),
-        ("Explanation temperature", 0.2),
+        ("Explanation temperature",
+         config.chat_temperature(config.CHAT_MODEL)
+         if config.chat_temperature(config.CHAT_MODEL) is not None
+         else "model default"),
     ]
     with st.expander("All the settings, for the curious"):
         st.markdown("Read live from the configuration files, so "
@@ -1823,7 +1830,11 @@ with tab_lab:
         st.button("Run it — fill the prompt and get the answer",
                   key="lab_run", on_click=_run_lab, type="primary",
                   width="stretch")
-    st.caption(f"Sent to {config.CHAT_MODEL} at temperature 0.2, "
+    _chat_temp = config.chat_temperature(config.CHAT_MODEL)
+    _chat_temp_text = (f"temperature {_chat_temp}"
+                       if _chat_temp is not None
+                       else "its default temperature")
+    st.caption(f"Sent to {config.CHAT_MODEL} at {_chat_temp_text}, "
                "using the fine-tuning controls in the Fine-tune tab. "
                "When no passage passes "
                "the threshold and K filters, no prompt is built and "
